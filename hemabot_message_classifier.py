@@ -5,13 +5,11 @@ we use a machine learning model to predict the message type.
 """
 import datetime
 import random
-from re import X
 
 import codefast as cf
 import fasttext
 import pandas as pd
 from faker import Faker
-from tensorflow import keras
 
 from premium.experimental.myfasttext import benchmark as ftb
 from premium.models.bert import BertClassifier
@@ -140,17 +138,17 @@ def try_bert():
 
     df = df[['target', 'text']]
     df.to_csv('localdata/tmp.csv', index=False)
-    from premium.models.bert import bert_benchmark
-    bc = bert_benchmark(df, epochs=2)
+    # from premium.models.bert import bert_benchmark
+    # bc = bert_benchmark(df, epochs=2)
 
     test_texts = [
         'this is a quite short sentence.', 'oncemssage 12:03 somerurn',
         'avatar', 'www baidu com video mp4'
     ]
     test_texts += cf.io.read('localdata/test_hema.txt')
-    # bc = BertClassifier(bert_name='distilbert-base-uncased',
-    #                     num_labels=6,
-    #                     weights_path='/tmp/logs/keras.h5')
+    bc = BertClassifier(bert_name='distilbert-base-uncased',
+                        num_labels=6,
+                        weights_path='/tmp/logs/keras.h5')
 
     xs = bc.predict(test_texts)
     label_map = cf.js('/tmp/label_map.json')

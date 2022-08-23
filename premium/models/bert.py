@@ -7,12 +7,10 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import (CSVLogger, EarlyStopping,
-                                        ModelCheckpoint, ReduceLROnPlateau)
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
-from transformers import (AutoTokenizer, AutoModel, BertConfig, BertModel, BertTokenizer,
-                          BertTokenizerFast, TFDistilBertModel,
+from transformers import (AutoTokenizer, AutoModel, BertConfig, BertModel,
+                          BertTokenizer, BertTokenizerFast, TFDistilBertModel,
                           DistilBertTokenizer, RobertaTokenizer,
                           TFBertForSequenceClassification, TFBertModel,
                           TFDistilBertForSequenceClassification,
@@ -36,7 +34,6 @@ class BertDataGenerator(tf.keras.utils.Sequence):
         (or just `[input_ids, attention_mask, `token_type_ids]`
          if `include_targets=False`)
     """
-
     def __init__(
         self,
         sentences,
@@ -101,18 +98,15 @@ class BertDataGenerator(tf.keras.utils.Sequence):
 
 
 class BertClassifier(object):
-
-    def __init__(
-        self,
-        max_sentence_len: int = 64,
-        layer_number: int = 3,
-        bert_name: str = "distilbert-base-uncased",
-        do_lower_case: bool = True,
-        num_labels: int = 2,
-        loss: str = None,
-        cache_dir: str = "/data/cache",
-        weights_path: str = None
-    ) -> None:
+    def __init__(self,
+                 max_sentence_len: int = 64,
+                 layer_number: int = 3,
+                 bert_name: str = "distilbert-base-uncased",
+                 do_lower_case: bool = True,
+                 num_labels: int = 2,
+                 loss: str = None,
+                 cache_dir: str = "/data/cache",
+                 weights_path: str = None) -> None:
         """ 
         Args:
             max_sentence_len: max length of sentence
@@ -134,12 +128,12 @@ class BertClassifier(object):
             cf.warning("cache_dir not exists, create one")
 
         if self.weights_path:
-            self.model = self._create_model()
+            self.model = self.build_model()
             self.model.load_weights(self.weights_path)
             cf.info({"model summary": self.model.summary()})
 
     def get_tokenizer(self):
-        TOKENIZER_MAP = {
+        TOKENIZER_MAP, bn = {
             'distilbert-base-uncased': DistilBertTokenizer,
             'bert-large-uncased': BertTokenizer,
             'bert-base-uncased': BertTokenizer,
@@ -148,8 +142,7 @@ class BertClassifier(object):
             'roberta-large': RobertaTokenizer,
             'xlnet-base-cased': XLNetTokenizer,
             'xlnet-large-cased': XLNetTokenizer,
-        }
-        bn = self.bert_name
+        }, self.bert_name
         assert bn in TOKENIZER_MAP, 'UNSUPPORTED BERT CHOICE {}'.format(bn)
         return TOKENIZER_MAP[bn].from_pretrained(bn, cache_dir=self.cache_dir)
 
@@ -157,27 +150,35 @@ class BertClassifier(object):
         config = BertConfig.from_pretrained(self.bert_name,
                                             output_hidden_states=True,
                                             output_attentions=True)
-        if self.bert_name in ('distilbert-base-uncased',):
-            return TFDistilBertModel.from_pretrained(self.bert_name, config=config, cache_dir=self.cache_dir)
-        elif self.bert_name in ("bert-large-uncased", "bert-base-uncased",
-                                "distilbert-base-uncased"):
-            return TFBertModel.from_pretrained(self.bert_name,
-                                               config=config,
-                                               cache_dir=self.cache_dir)
-        elif self.bert_name in ("bert-base-chinese"):
-            return TFBertModel.from_pretrained(self.bert_name,
-                                               config=config,
-                                               cache_dir=self.cache_dir)
-        elif self.bert_name in ("roberta-large", "roberta-base"):
-            return TFRobertaModel.from_pretrained(self.bert_name,
-                                                  cache_dir=self.cache_dir)
-        elif self.bert_name in ("xlnet-base-cased", "xlnet-large-cased"):
-            return TFXLNetModel.from_pretrained(self.bert_name,
-                                                cache_dir=self.cache_dir)
-        else:
-            raise ValueError("bert_name not supported")
+        MODEL_MAP, bn = {
+            'distilbert-base-uncased': TFDistilBertModel,
+            'bert-base-uncased': TFBertModel,
+            'bert-large-uncased': TFBertModel,
+            'bert-base-chinse': TFBertModel,
+            'roberta-base': TFRobertaModel,
+            'roberta-large': TFRobertaModel,
+            'xlnet-base-cased': TFXLNetModel,
+            'xlnet-large-cased': TFXLNetModel,
+        }, self.bert_name
+        assert bn in MODEL_MAP, "UNSUPPORTED BERT MODEL {}".format(bn)
+        return MODEL_MAP[bn].from_pretrained(bn,
+                                             config=config,
+                                             cache_dir=self.cache_dir)
 
-    def _bert_encode(self, texts: List[str]):
+    def batch_encoder(self, texts: List[str]):
+        """
+        A function that encodes a batch of texts and returns the texts'
+        corresponding encodings and attention masks that are ready to be fed 
+        into a pre-trained transformer model.
+        
+        Input:
+            - texts:       List of strings where each string represents a text
+            - batch_size:  Integer controlling number of texts in a batch
+            - max_length:  Integer controlling max number of words to tokenize in a given text
+        Output:
+            - input_ids:       sequence of texts encoded as a tf.Tensor object
+            - attention_mask:  the texts' attention mask encoded as a tf.Tensor object
+        """
         cf.info("start {} encoding".format(self.bert_name))
         tokenizer = self.get_tokenizer()
         input_ids = []
@@ -195,7 +196,7 @@ class BertClassifier(object):
         cf.info("{} encoding finished".format(self.bert_name))
         return np.array(input_ids), np.array(attention_masks)
 
-    def _create_model(self, sequence_len: int = 64):
+    def build_model(self, sequence_len: int = 64):
         cf.info("start creating model")
         input_ids = tf.keras.Input(shape=(sequence_len, ),
                                    dtype="int32",
@@ -206,20 +207,32 @@ class BertClassifier(object):
 
         bert_model = self.get_pretrained_model()
         cf.info("model {} created".format(self.bert_name))
-        # Get the final embeddings from the BERT model
-        embedding = bert_model([input_ids, attention_masks])
-        cf.info("embedding length", len(embedding))
-        cf.info("embedding[1] shape", embedding[1].shape)
-        embedding = embedding[1]
-        embedding = tf.keras.layers.Dense(32, activation='relu')(embedding)
-        embedding = tf.keras.layers.Dropout(0.2)(embedding)
 
-        if self.num_labels == 2:     # binary classification
+        # BERT outputs a tuple where the first element at index 0
+        # represents the hidden-state at the output of the model's last layer.
+        # It is a tf.Tensor of shape (batch_size, sequence_length, hidden_size=768).
+        last_hidden_state = bert_model([input_ids, attention_masks])[0]
+
+        # We only care about transformer's output for the [CLS] token,
+        # which is located at index 0 of every encoded sequence.
+        # Splicing out the [CLS] tokens gives us 2D data.
+        # cf.info("embedding length", len(last_hidden_state))
+        cls_token = last_hidden_state[:, 0, :]
+
+        # cf.info("embedding[1] shape", embedding[1].shape)
+        # embedding = embedding[1] # ????? 0 or 1, which one
+        embedding = tf.keras.layers.Dense(32,
+                                          activation='relu')(last_hidden_state)
+        embedding = tf.keras.layers.Dropout(0.2)(embedding)
+        """ refer to the following link to refine your model
+        https://towardsdatascience.com/hugging-face-transformers-fine-tuning-distilbert-for-binary-classification-tasks-490f1d192379
+        """
+        if self.num_labels == 2:  # binary classification
             output = Dense(1, activation="sigmoid")(embedding)
             loss = "binary_crossentropy"
             metrics = ['accuracy']
         else:
-            output = Dense(self.num_labels, activation="softmax")(embedding)
+            output = Dense(self.num_labels, activation="softmax")(cls_token)
             loss = "sparse_categorical_crossentropy"
             metrics = ['sparse_categorical_accuracy']
 
@@ -235,8 +248,8 @@ class BertClassifier(object):
         cf.info("model created")
         return model
 
-    def auto_set_label_num(self, y: List[Union[str,
-                                               int]]) -> Tuple[Dict, List[int]]:
+    def auto_set_label_num(self,
+                           y: List[Union[str, int]]) -> Tuple[Dict, List[int]]:
         """ Automatically set the number of labels based on the labels.
         If it is binary classification, then new label is like [0, 1, 1, 0], 
         if it is multi-classification, then new label is like [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -271,9 +284,10 @@ class BertClassifier(object):
             size that suits the gpu.
         """
         label_map, y = self.auto_set_label_num(y)
-        ids, masks = self._bert_encode(x)
+        ids, masks = self.batch_encoder(x)
         msg = {
-            'label_number': self.num_labels,
+            'label_number':
+            self.num_labels,
             'label_map':
             label_map,
             'input_ids_shape':
@@ -283,23 +297,21 @@ class BertClassifier(object):
         }
         cf.info(msg)
 
-        model = self._create_model(sequence_len=self.max_sentence_len)
+        model = self.build_model(sequence_len=self.max_sentence_len)
         cf.info({"model summary": model.summary()})
 
-        history = model.fit(
-            [ids, masks],
-            y,
-            validation_split=validation_split,
-            epochs=epochs,
-            batch_size=batch_size,
-            callbacks=KerasCallbacks().all
-        )
+        history = model.fit([ids, masks],
+                            y,
+                            validation_split=validation_split,
+                            epochs=epochs,
+                            batch_size=batch_size,
+                            callbacks=KerasCallbacks().all)
         self.model = model
         return history
 
     def predict(self, xt) -> List[int]:
         cf.info("START MAKING PREDICTION")
-        tids, tmasks = self._bert_encode(xt)
+        tids, tmasks = self.batch_encoder(xt)
         preds = self.model.predict([tids, tmasks])
         cf.info({"PREDICTION RESULTS": preds})
         preds = np.argmax(preds, axis=1)
@@ -317,7 +329,7 @@ class BertClassifier(object):
 
 def bert_benchmark(df: pd.DataFrame,
                    epochs: int = 1,
-                   bert_name: str = 'bert-base-uncased'):
+                   bert_name: str = 'distilbert-base-uncased'):
     """ A Bert classifier wrapper for faster benchmark. 
     """
     assert 'text' in df.columns, 'text column not found'
@@ -339,7 +351,6 @@ def map_sample_to_dict(input_ids, attention_masks, token_type_ids, label):
 
 
 class Dataset(object):
-
     def __init__(self, csv_file: str, ratio: float = -1):
         self.df = pd.read_csv(csv_file)
         if ratio > 0:
