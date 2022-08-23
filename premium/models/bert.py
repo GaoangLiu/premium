@@ -11,8 +11,8 @@ from tensorflow.keras.callbacks import (CSVLogger, EarlyStopping,
                                         ModelCheckpoint, ReduceLROnPlateau)
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
-from transformers import (AutoTokenizer, BertConfig, BertModel, BertTokenizer,
-                          BertTokenizerFast, DistilBertModel,
+from transformers import (AutoTokenizer, AutoModel, BertConfig, BertModel, BertTokenizer,
+                          BertTokenizerFast, TFDistilBertModel,
                           DistilBertTokenizer, RobertaTokenizer,
                           TFBertForSequenceClassification, TFBertModel,
                           TFDistilBertForSequenceClassification,
@@ -111,6 +111,7 @@ class BertClassifier(object):
         num_labels: int = 2,
         loss: str = None,
         cache_dir: str = "/data/cache",
+        weights_path: str = None
     ) -> None:
         """ 
         Args:
@@ -119,6 +120,7 @@ class BertClassifier(object):
             bert_name: name of bert model
             do_lower_case: whether to lower case
             num_labels: number of output classes
+            weights_path: trained keras weight path, if exists, skip training
         """
         self.max_sentence_len = max_sentence_len
         self.bert_name = bert_name
@@ -127,36 +129,38 @@ class BertClassifier(object):
         self.num_labels = num_labels
         self.loss = loss
         self.cache_dir = cache_dir
+        self.weights_path = weights_path
         if not cf.io.exists(self.cache_dir):
             cf.warning("cache_dir not exists, create one")
 
+        if self.weights_path:
+            self.model = self._create_model()
+            self.model.load_weights(self.weights_path)
+            cf.info({"model summary": self.model.summary()})
+
     def get_tokenizer(self):
-        if self.bert_name in (
-                "bert-large-uncased",
-                "bert-base-uncased",
-                "bert-base-chinese",
-                "distilbert-base-uncased",
-        ):
-            return BertTokenizer.from_pretrained(self.bert_name,
-                                                 cache_dir=self.cache_dir)
-        elif self.bert_name in ("roberta-large", "roberta-base"):
-            return RobertaTokenizer.from_pretrained(self.bert_name,
-                                                    cache_dir=self.cache_dir)
-        elif self.bert_name in ("xlnet-base-cased", "xlnet-large-cased"):
-            return XLNetTokenizer.from_pretrained(self.bert_name,
-                                                  cache_dir=self.cache_dir)
-        elif self.bert_name in ('bert-base-chinese'):
-            return BertTokenizer.from_pretrained(self.bert_name,
-                                                 cache_dir=self.cache_dir)
-        else:
-            raise ValueError("bert_name not supported")
+        TOKENIZER_MAP = {
+            'distilbert-base-uncased': DistilBertTokenizer,
+            'bert-large-uncased': BertTokenizer,
+            'bert-base-uncased': BertTokenizer,
+            'bert-base-chinese': BertTokenizer,
+            'roberta-base': RobertaTokenizer,
+            'roberta-large': RobertaTokenizer,
+            'xlnet-base-cased': XLNetTokenizer,
+            'xlnet-large-cased': XLNetTokenizer,
+        }
+        bn = self.bert_name
+        assert bn in TOKENIZER_MAP, 'UNSUPPORTED BERT CHOICE {}'.format(bn)
+        return TOKENIZER_MAP[bn].from_pretrained(bn, cache_dir=self.cache_dir)
 
     def get_pretrained_model(self):
         config = BertConfig.from_pretrained(self.bert_name,
                                             output_hidden_states=True,
                                             output_attentions=True)
-        if self.bert_name in ("bert-large-uncased", "bert-base-uncased",
-                              "distilbert-base-uncased"):
+        if self.bert_name in ('distilbert-base-uncased',):
+            return TFDistilBertModel.from_pretrained(self.bert_name, config=config, cache_dir=self.cache_dir)
+        elif self.bert_name in ("bert-large-uncased", "bert-base-uncased",
+                                "distilbert-base-uncased"):
             return TFBertModel.from_pretrained(self.bert_name,
                                                config=config,
                                                cache_dir=self.cache_dir)
@@ -227,11 +231,6 @@ class BertClassifier(object):
         model = tf.keras.models.Model(inputs=[input_ids, attention_masks],
                                       outputs=output)
 
-        # TODO
-        # model.compile(AdamWarmup(decay_steps=decay_steps,
-        #                     warmup_steps=warmup_steps, lr=LR),
-        #          loss='sparse_categorical_crossentropy',
-        #          metrics=['sparse_categorical_accuracy'])
         model.compile(Adam(lr=6e-6), loss=loss, metrics=metrics)
         cf.info("model created")
         return model
@@ -251,6 +250,8 @@ class BertClassifier(object):
                 label_map[yi] = len(label_map)
         new_y = np.array([label_map[yi] for yi in y])
         self.num_labels = len(label_map)
+        cf.info('Export {label, id} map to /tmp/label_map.json')
+        cf.js.write(label_map, '/tmp/label_map.json')
         return label_map, new_y
 
     def fit(
@@ -260,7 +261,7 @@ class BertClassifier(object):
         epochs: int = 3,
         batch_size: int = 32,
         early_stop: int = 5,
-        validation_split: float = 0.3,
+        validation_split: float = 0.2,
     ) -> Tuple[tf.keras.Model, Dict]:
         """
         Args:
@@ -283,49 +284,25 @@ class BertClassifier(object):
         cf.info(msg)
 
         model = self._create_model(sequence_len=self.max_sentence_len)
-        cf.info("model summary:")
-        print(model.summary())
+        cf.info({"model summary": model.summary()})
 
-        # trained the classfier on use layer
-        # filepath = "models/weights-improvement-{epoch:02d}-{val_accuracy:.2f}.hdf5"
-        early_stopping = EarlyStopping(
-            monitor="val_loss",
-            mode="min",
-            patience=early_stop,
-            restore_best_weights=True,
-            # restore model weights from the epoch with the best value of the monitored quantity
-            verbose=1,
-        )
-
-        mcp_save = ModelCheckpoint(filepath="/tmp/",
-                                   save_weights_only=True,
-                                   monitor="val_loss",
-                                   mode="auto")
-
-        reduce_lr_loss = ReduceLROnPlateau(monitor="val_loss",
-                                           factor=0.1,
-                                           patience=5,
-                                           verbose=1,
-                                           mode="min")
-
-        csv_logger = CSVLogger("/tmp/keraslog.csv", append=True, separator=";")
         history = model.fit(
             [ids, masks],
             y,
             validation_split=validation_split,
             epochs=epochs,
             batch_size=batch_size,
-            callbacks=[early_stopping, mcp_save, reduce_lr_loss, csv_logger],
+            callbacks=KerasCallbacks().all
         )
         self.model = model
         return history
 
-    def predict(self, xt):
-        cf.info("start predicting")
+    def predict(self, xt) -> List[int]:
+        cf.info("START MAKING PREDICTION")
         tids, tmasks = self._bert_encode(xt)
         preds = self.model.predict([tids, tmasks])
-        preds = np.round(preds).astype(int)
-        cf.info("predict finished")
+        cf.info({"PREDICTION RESULTS": preds})
+        preds = np.argmax(preds, axis=1)
         return preds
 
     def show_history(self, history):
@@ -340,14 +317,14 @@ class BertClassifier(object):
 
 def bert_benchmark(df: pd.DataFrame,
                    epochs: int = 1,
-                   bert_name: str = 'bert-base-chinese'):
+                   bert_name: str = 'bert-base-uncased'):
     """ A Bert classifier wrapper for faster benchmark. 
     """
     assert 'text' in df.columns, 'text column not found'
     assert 'target' in df.columns, 'target column not found'
     bc = BertClassifier(bert_name=bert_name)
     history = bc.fit(df['text'], df['target'], epochs=epochs)
-    return bc 
+    return bc
 
 
 def map_sample_to_dict(input_ids, attention_masks, token_type_ids, label):

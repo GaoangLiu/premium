@@ -87,6 +87,8 @@ def generate_deepl(text: str) -> str:
             message_list = KEYWORDS_MAP[0][1]
             noise = random.choice(message_list)
         words.insert(rand_index, noise)
+        if random.randint(0, 10) == 1:
+            return random.choice(['how are you', 'are you okay'])
         return ' '.join(words)
 
 
@@ -117,9 +119,8 @@ def add_sample(row: pd.Series) -> str:
         raise Exception('unknown key:', key)
 
 
-def train():
+def ftext():
     df = pd.read_csv('/tmp/10k.csv', encoding="ISO-8859-1")
-    # df = df.sample(30000)
     keys = [k for k, _ in KEYWORDS_MAP]
     labels = [random.choice(keys) for _ in range(len(df))]
     df['target'] = labels
@@ -129,32 +130,41 @@ def train():
     df.to_csv('localdata/tmp.csv', index=False)
     print(df)
 
-    model_choice = 1
-    if model_choice == 0:
-        model = ftb(df, dim=20)
-        model.save_model('localdata/hema_model.bin')
-    else:
-        from premium.models.bert import bert_benchmark
-        df = df.sample(1000)
-        clf = bert_benchmark(df, epochs=1, bert_name='bert-base-uncased')
-        pred = clf.predict(['are you okay'])
-        print(pred)
-        clf.model.save('keras-bot.h5', save_format='tf')
 
-# refer https://swatimeena989.medium.com/bert-text-classification-using-keras-903671e0207d
-# on how to save and load model
-model = keras.models.load_model('keras-bot.h5')
-bc = BertClassifier(bert_name='bert-base-uncased')
-bc.model = model
-xs = bc.predict(['this is a quite short sentence.'])
-print(xs)
+def try_bert():
+    df = pd.read_csv('/tmp/10k.csv', encoding="ISO-8859-1")
+    keys = [k for k, _ in KEYWORDS_MAP]
+    labels = [random.choice(keys) for _ in range(len(df))]
+    df['target'] = labels
+    df['text'] = df.apply(add_sample, axis=1)
+
+    df = df[['target', 'text']]
+    df.to_csv('localdata/tmp.csv', index=False)
+    from premium.models.bert import bert_benchmark
+    bc = bert_benchmark(df, epochs=2)
+
+    test_texts = [
+        'this is a quite short sentence.', 'oncemssage 12:03 somerurn',
+        'avatar', 'www baidu com video mp4'
+    ]
+    test_texts += cf.io.read('localdata/test_hema.txt')
+    # bc = BertClassifier(bert_name='distilbert-base-uncased',
+    #                     num_labels=6,
+    #                     weights_path='/tmp/logs/keras.h5')
+
+    xs = bc.predict(test_texts)
+    label_map = cf.js('/tmp/label_map.json')
+    label_map = dict((v, k) for k, v in label_map.items())
+    for i, text in enumerate(test_texts):
+        print(label_map[xs[i]], text)
+
+
+try_bert()
 exit(0)
 
-train()
-exit(0)
 model_path = 'localdata/hema_model.bin'
 model = fasttext.load_model(model_path)
-for text in cf.io.read('test_hema.txt'):
+for text in cf.io.read('localdata/test_hema.txt'):
     text = split_url(text)
     msg = {'text': text, 'label': model.predict(text)}
     print(msg)
