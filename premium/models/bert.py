@@ -347,7 +347,7 @@ def bert_benchmark(df: pd.DataFrame,
     assert 'target' in df.columns, 'target column not found'
     bc = BertClassifier(bert_name=bert_name)
     history = bc.fit(df['text'], df['target'], epochs=epochs)
-    return history
+    return bc 
 
 
 def map_sample_to_dict(input_ids, attention_masks, token_type_ids, label):

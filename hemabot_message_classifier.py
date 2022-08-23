@@ -5,36 +5,38 @@ we use a machine learning model to predict the message type.
 """
 import datetime
 import random
+from re import X
 
 import codefast as cf
 import fasttext
 import pandas as pd
 from faker import Faker
+from tensorflow import keras
 
 from premium.experimental.myfasttext import benchmark as ftb
+from premium.models.bert import BertClassifier
 
 faker = Faker()
 
-KEYWORDS_MAP = [
-    ('oncemessage', ['oncemessage', 'onecemesage', 'oncemsg', 'oncemassage']),
-    ('weather', [
-        'weather',
-        'how is the weather',
-        'how is weather',
-        "how's weather",
-        "what is the weather",
-        "what's weather",
-        'tainqi',
-        'tianqi',
-        'tianqiyubao',
-    ]),
-    ('avatar', [
-        'avadar', 'avatar', 'touxiang', 'headiamge', 'headimage', 'head iamge',
-        'avatarimg', 'avatarimgs'
-    ]), ('deepl', ['deepl', 'deelp', 'translate', 'deeptranslate']),
-    ('pcloud', ['pcloud', 'pclouduplaod', 'pcloudupload']),
-    ('twitter', ['twitter.com'])
-]
+KEYWORDS_MAP = [('oncemessage',
+                 ['oncemessage', 'onecemesage', 'oncemsg', 'oncemassage']),
+                ('weather', [
+                    'weather',
+                    'how is the weather',
+                    'how is weather',
+                    "how's weather",
+                    "what is the weather",
+                    "what's weather",
+                    'tainqi',
+                    'tianqi',
+                    'tianqiyubao',
+                ]),
+                ('avatar', [
+                    'avadar', 'avatar', 'touxiang', 'headiamge', 'headimage',
+                    'head iamge', 'avatarimg', 'avatarimgs'
+                ]), ('deepl', ['deepl', 'deelp', 'translate', 'deeptranslate']),
+                ('pcloud', ['pcloud', 'pclouduplaod', 'pcloudupload']),
+                ('twitter', ['twitter.com'])]
 
 
 def split_url(url: str) -> str:
@@ -56,7 +58,7 @@ def generate_twitter_url(user_name: str) -> str:
 
 def generate_pcloud_url() -> str:
     hostname = faker.hostname()
-    if random.randint(0, 10) > 3:  # add noise
+    if random.randint(0, 10) > 3:     # add noise
         user = faker.user_name()
         hostname = generate_twitter_url(user).replace('https://', '')
     http = 'http ' if random.randint(0, 1) == 0 else 'https '
@@ -75,7 +77,8 @@ def generate_deepl(text: str) -> str:
     else:
         words = text.split(' ')
         rand_index = random.randint(1,
-                                    len(words) - 1)  # insert after first word
+                                    len(words) -
+                                    1)     # insert after first word
         # Reduce confusion with weather labels and onemessage labels
         if random.randint(0, 1) == 0:
             weather_list = KEYWORDS_MAP[1][1]
@@ -126,13 +129,29 @@ def train():
     df.to_csv('localdata/tmp.csv', index=False)
     print(df)
 
-    from premium.models.bert import bert_benchmark
-    model = ftb(df, dim=20)
-    model.save_model('localdata/hema_model.bin')
+    model_choice = 1
+    if model_choice == 0:
+        model = ftb(df, dim=20)
+        model.save_model('localdata/hema_model.bin')
+    else:
+        from premium.models.bert import bert_benchmark
+        df = df.sample(1000)
+        clf = bert_benchmark(df, epochs=1, bert_name='bert-base-uncased')
+        pred = clf.predict(['are you okay'])
+        print(pred)
+        clf.model.save('keras-bot.h5', save_format='tf')
 
+# refer https://swatimeena989.medium.com/bert-text-classification-using-keras-903671e0207d
+# on how to save and load model
+model = keras.models.load_model('keras-bot.h5')
+bc = BertClassifier(bert_name='bert-base-uncased')
+bc.model = model
+xs = bc.predict(['this is a quite short sentence.'])
+print(xs)
+exit(0)
 
 train()
-# exit(0)
+exit(0)
 model_path = 'localdata/hema_model.bin'
 model = fasttext.load_model(model_path)
 for text in cf.io.read('test_hema.txt'):
