@@ -9,12 +9,13 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
-from transformers import (AutoTokenizer, AutoModel, BertConfig, BertModel,
-                          BertTokenizer, BertTokenizerFast, TFDistilBertModel,
+from transformers import (AutoModel, AutoTokenizer, BertConfig, BertModel,
+                          BertTokenizer, BertTokenizerFast,
                           DistilBertTokenizer, RobertaTokenizer,
                           TFBertForSequenceClassification, TFBertModel,
                           TFDistilBertForSequenceClassification,
-                          TFRobertaModel, TFXLNetModel, XLNetTokenizer)
+                          TFDistilBertModel, TFRobertaModel, TFXLNetModel,
+                          XLNetTokenizer)
 
 from premium.models.model_config import KerasCallbacks
 
@@ -34,6 +35,7 @@ class BertDataGenerator(tf.keras.utils.Sequence):
         (or just `[input_ids, attention_mask, `token_type_ids]`
          if `include_targets=False`)
     """
+
     def __init__(
         self,
         sentences,
@@ -98,6 +100,7 @@ class BertDataGenerator(tf.keras.utils.Sequence):
 
 
 class BertClassifier(object):
+
     def __init__(self,
                  max_sentence_len: int = 64,
                  layer_number: int = 3,
@@ -124,6 +127,7 @@ class BertClassifier(object):
         self.loss = loss
         self.cache_dir = cache_dir
         self.weights_path = weights_path
+        self.tokenizer = None
         if not cf.io.exists(self.cache_dir):
             cf.warning("cache_dir not exists, create one")
 
@@ -170,7 +174,7 @@ class BertClassifier(object):
         A function that encodes a batch of texts and returns the texts'
         corresponding encodings and attention masks that are ready to be fed 
         into a pre-trained transformer model.
-        
+
         Input:
             - texts:       List of strings where each string represents a text
             - batch_size:  Integer controlling number of texts in a batch
@@ -180,17 +184,18 @@ class BertClassifier(object):
             - attention_mask:  the texts' attention mask encoded as a tf.Tensor object
         """
         cf.info("start {} encoding".format(self.bert_name))
-        tokenizer = self.get_tokenizer()
-        input_ids = []
-        attention_masks = []
+        if self.tokenizer is None:
+            self.tokenizer = self.get_tokenizer()
+        input_ids, attention_masks = [], []
 
         for text in texts:
-            encoded = tokenizer.encode_plus(text,
-                                            add_special_tokens=True,
-                                            max_length=self.max_sentence_len,
-                                            padding="max_length",
-                                            return_attention_mask=True,
-                                            truncation=True)
+            encoded = self.tokenizer.encode_plus(
+                text,
+                add_special_tokens=True,
+                max_length=self.max_sentence_len,
+                padding="max_length",
+                return_attention_mask=True,
+                truncation=True)
             input_ids.append(encoded["input_ids"])
             attention_masks.append(encoded["attention_mask"])
         cf.info("{} encoding finished".format(self.bert_name))
@@ -227,7 +232,7 @@ class BertClassifier(object):
         """ refer to the following link to refine your model
         https://towardsdatascience.com/hugging-face-transformers-fine-tuning-distilbert-for-binary-classification-tasks-490f1d192379
         """
-        if self.num_labels == 2:  # binary classification
+        if self.num_labels == 2:     # binary classification
             output = Dense(1, activation="sigmoid")(embedding)
             loss = "binary_crossentropy"
             metrics = ['accuracy']
@@ -248,8 +253,8 @@ class BertClassifier(object):
         cf.info("model created")
         return model
 
-    def auto_set_label_num(self,
-                           y: List[Union[str, int]]) -> Tuple[Dict, List[int]]:
+    def auto_set_label_num(self, y: List[Union[str,
+                                               int]]) -> Tuple[Dict, List[int]]:
         """ Automatically set the number of labels based on the labels.
         If it is binary classification, then new label is like [0, 1, 1, 0], 
         if it is multi-classification, then new label is like [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -351,6 +356,7 @@ def map_sample_to_dict(input_ids, attention_masks, token_type_ids, label):
 
 
 class Dataset(object):
+
     def __init__(self, csv_file: str, ratio: float = -1):
         self.df = pd.read_csv(csv_file)
         if ratio > 0:
