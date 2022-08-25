@@ -158,7 +158,7 @@ class BertClassifier(object):
             'distilbert-base-uncased': TFDistilBertModel,
             'bert-base-uncased': TFBertModel,
             'bert-large-uncased': TFBertModel,
-            'bert-base-chinse': TFBertModel,
+            'bert-base-chinese': TFBertModel,
             'roberta-base': TFRobertaModel,
             'roberta-large': TFRobertaModel,
             'xlnet-base-cased': TFXLNetModel,

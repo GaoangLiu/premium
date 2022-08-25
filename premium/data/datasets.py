@@ -13,7 +13,7 @@ from premium.utils import md5sum
 
 
 class Urls(object):
-    prefix = 'https://filedn.com/lCdtpv3siVybVynPcgXgnPm/corpus'
+    prefix = 'https://file.ddot.cc/corpus'
 
 
 Path = TypeVar('Path', str, List[str])
@@ -127,9 +127,8 @@ class WordToVector(object):
         if file_name.endswith('.pkl'):
             return pickle.load(open(file_name, 'rb'))
         elif vector != 'google-news-negative-300':
-            return dict(
-                Math.get_coefs(*o.strip().split())
-                for o in cf.io.iter(file_name))
+            from gensim.models import KeyedVectors
+            return KeyedVectors.load_word2vec_format(file_name)
         else:
             return KeyedVectors.load_word2vec_format(
                 '/tmp/GoogleNews-vectors-negative300.bin', binary=True)
@@ -138,7 +137,12 @@ class WordToVector(object):
 word2vec = WordToVector()
 
 
-class Downloader:
+class Downloader(object):
+    def imdb(self):
+        """ Englis imdb sentiment analysis 50000
+        """
+        cf.info('Downloading imdg sentiment dataset')
+        fetch_data('imdb_sentiment.csv', sub_dir='classification')
 
     def douban_movie_review(self):
         '''Kaggle dataset https://www.kaggle.com/liujt14/dou-ban-movie-short-comments-10377movies

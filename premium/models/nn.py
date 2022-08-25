@@ -28,7 +28,7 @@ class BiLSTM(object):
                  X=None,
                  y=None) -> None:
         self.max_feature = max_feature
-        self.max_len = max_len
+        self.max_length = max_len
         self.embed_size = embed_size
         self.X = X
         self.y = y
@@ -39,17 +39,17 @@ class BiLSTM(object):
 
     def tokenize_sequence(self):
         self.X, tokenizer = tokenize(self.X, max_feature=self.max_feature)
-        self.sequence = sequence.pad_sequences(self.X, maxlen=self.max_len)
+        self.sequence = sequence.pad_sequences(self.X, maxlen=self.max_length)
         self.tokenizer = tokenizer
         self.word_index = tokenizer.word_index
         cf.info('{} of unique tokens were found'.format(len(self.word_index)))
         return self.tokenizer
 
     def embed(self, pretrained_vector: str = 'glove-wiki-gigaword-50'):
-        self.embeddings_index = pm.word2vec.load(pretrained_vector)
+        self.pretrained_vector = pm.word2vec.load(pretrained_vector)
         cf.info('load {} completes'.format(pretrained_vector))
 
-        all_embeddings = np.stack(list(self.embeddings_index.values()))
+        all_embeddings = np.stack(list(self.pretrained_vector.values()))
         emb_mean, emb_std = all_embeddings.mean(), all_embeddings.std()
         assert self.word_index is not None, 'Tokenize and sequence text first!'
 
@@ -60,7 +60,7 @@ class BiLSTM(object):
         hit, missed = 0, 0
         for word, i in self.word_index.items():
             if i < self.max_feature:
-                embedding_vector = self.embeddings_index.get(word)
+                embedding_vector = self.pretrained_vector.get(word)
                 if embedding_vector is not None:
                     self.embedding_matrix[i] = embedding_vector
                     hit += 1
@@ -73,7 +73,7 @@ class BiLSTM(object):
         return self.embedding_matrix
 
     def build_model(self):
-        inp = Input(shape=(self.max_len, ))
+        inp = Input(shape=(self.max_length, ))
         x = Embedding(self.max_feature,
                       self.embed_size,
                       weights=[self.embedding_matrix])(inp)
@@ -141,16 +141,22 @@ def optimal_batch_size(sequence_size: int) -> int:
 
 class NNTouchStone(object):
 
-    def __init__(self, X, y, validation_split: float = 0.15, max_len: int = -1):
+    def __init__(self, X, y, max_feature: int = 10000, validation_split: float = 0.15, max_length: int = -1, epochs: int = 3):
+        """ Text classification with LSTM
+        Inputs: 
+            X: a list of text
+            y: labels
+        """
         self.X = X
         self.y = y
         self.Xt = None
         self.yt = None
         self.validation_split = validation_split
-        self.max_len = max_len
-        self.epochs = 63
+        self.max_length = max_length
+        self.epochs = epochs
+        self.max_feature = 10000
 
-    def preprocess(self):
+    def _tokenize(self):
         self.X, self.Xt, self.y, self.yt, _i, _j = train_test_split(
             self.X,
             self.y,
@@ -166,39 +172,41 @@ class NNTouchStone(object):
         self.tokenizer = tokenizer
         self.word_index = tokenizer.word_index
 
-        if self.max_len < 0:
-            self.max_len = int(np.percentile(list(map(len, self.X)), 95))
-        cf.info('MAX_LENGTH_SEQUENCE set to {}'.format(self.max_len))
-        assert self.max_len >= 2, 'max length is less than 2, check your data.'
+        if self.max_length < 0:
+            self.max_length = int(np.percentile(list(map(len, self.X)), 95))
+        cf.info('MAX_LENGTH_SEQUENCE set to {}'.format(self.max_length))
+        assert self.max_length >= 2, 'max length is less than 2, check your data.'
 
-        self.X = pad_sequences(self.X, maxlen=self.max_len, padding="pre")
-        self.Xt = pad_sequences(self.Xt, maxlen=self.max_len, padding="pre")
+        self.X = pad_sequences(self.X, maxlen=self.max_length, padding="pre")
+        self.Xt = pad_sequences(self.Xt, maxlen=self.max_length, padding="pre")
 
         self.input_dim = len(tokenizer.word_index) + 1
 
     def embed(self, pretrained_vector: str = ''):
         if pretrained_vector:
-            self.embeddings_index = pm.word2vec.load(pretrained_vector)
+            self.pretrained_vector = pm.word2vec.load(pretrained_vector)
             cf.info('load {} completes'.format(pretrained_vector))
-
-        all_embeddings = np.stack(list(self.embeddings_index.values()))
+        values = [self.pretrained_vector[word]
+                  for word in self.pretrained_vector.index_to_key]
+        all_embeddings = np.stack(values)
         emb_mean, emb_std = all_embeddings.mean(), all_embeddings.std()
+        event = {'msg': 'embed {}'.format(
+            pretrained_vector), 'mean': emb_mean, 'std': emb_std}
         assert self.word_index is not None, 'Tokenize and sequence text first!'
 
-        self.max_feature = min(self.max_feature, len(self.word_index))
+        self.max_feature = len(self.word_index)
+        embed_size = all_embeddings.shape[1]
         self.embedding_matrix = np.random.normal(
-            emb_mean, emb_std, (self.max_feature, self.embed_size))
+            emb_mean, emb_std, (self.max_feature, embed_size))
 
         missed, hit = 0, 0
         for word, i in self.word_index.items():
-            if i < self.max_feature:
-                embedding_vector = self.embeddings_index.get(word)
-                if embedding_vector is not None:
-                    self.embedding_matrix[i] = embedding_vector
-                    hit += 1
-                else:
-                    missed += 1
-
+            if word in self.pretrained_vector:
+                embedding_vector = self.pretrained_vector[word]
+                self.embedding_matrix[i-1] = embedding_vector
+                hit += 1
+            else:
+                missed += 1
         cf.info(
             'embed completes, size of embedding matrix {}. Missed {}, hit {}'.
             format(self.embedding_matrix.shape, missed, hit))
@@ -207,17 +215,39 @@ class NNTouchStone(object):
 
     def build_model(self):
         cf.info('Building model...')
-        M = Sequential()
-        M.add(Embedding(self.input_dim, 100, input_length=self.max_len))
+        from tensorflow.keras import layers
+        from tensorflow import keras
+        embedding_matrix = self.embed('glove-twitter-25')
+        embedding_layer = Embedding(
+            len(self.word_index),
+            25,
+            embeddings_initializer=keras.initializers.Constant(
+                embedding_matrix),
+            trainable=False,
+        )
+        int_sequences_input = keras.Input(shape=(None,), dtype="int64")
+        embedded_sequences = embedding_layer(int_sequences_input)
+        x = layers.Conv1D(128, 5, activation="relu")(embedded_sequences)
+        x = layers.MaxPooling1D(5)(x)
+        x = layers.Conv1D(128, 5, activation="relu")(x)
+        x = layers.MaxPooling1D(5)(x)
+        x = layers.Conv1D(128, 5, activation="relu")(x)
+        x = layers.GlobalMaxPooling1D()(x)
+        x = layers.Dense(128, activation="relu")(x)
+        x = layers.Dropout(0.5)(x)
+        preds = layers.Dense(1, activation='sigmoid')(x)
+        M = keras.Model(int_sequences_input, preds)
 
-        M.add(Bidirectional(GRU(100)))
-        M.add(Dropout(0.4))
-
-        M.add(Dense(80, activation="relu"))
-        M.add(Dropout(0.4))
-        M.add(Dense(60, activation="relu"))
-        M.add(Dropout(0.4))
-        M.add(Dense(1, activation="sigmoid"))
+        # M = Sequential([
+        #     keras.Input(shape=(None,), dtype="int64"),
+        #     embedding_layer(),
+        #     # Embedding(self.input_dim, 100, input_length=self.max_length),
+        #     Bidirectional(LSTM(100)),
+        #     Dropout(0.5),
+        #     Dense(50, activation="relu"),
+        #     Dropout(0.5),
+        #     Dense(1, activation="sigmoid")
+        # ])
 
         M.compile(loss="binary_crossentropy",
                   optimizer="adam",
@@ -238,12 +268,12 @@ class NNTouchStone(object):
                                      save_weights_only=True,
                                      verbose=1,
                                      save_best_only=True,
-                                     period=1)
+                                     save_freq=1)
         fit_params = {
             'batch_size': optimal_batch_size(len(self.X)),
             'validation_split': 0.1,
             'epochs': self.epochs,
-            'callbacks': [es, checkpoint]
+            'callbacks': [es]
         }
         self.model.fit(self.X, self.y, **fit_params)
         self.model.load_weights(weight_path)
@@ -255,7 +285,7 @@ class NNTouchStone(object):
         return self.yt, y_pred
 
     def pipeline(self):
-        self.preprocess()
+        self._tokenize()
         self.build_model()
         self.train()
-        return self.predict()
+        # return self.predict()
