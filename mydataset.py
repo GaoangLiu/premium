@@ -1,29 +1,64 @@
 #!/usr/bin/env python
+import os
 import random
-import re, os, sys, joblib
+import re
+import sys
 from collections import defaultdict
 from functools import reduce
+
 import codefast as cf
-
+import jieba
+import joblib
 import numpy as np
+import pandas as pd
+import tensorflow as tf
 import torch as T
+from rich import print
+from sklearn.model_selection import train_test_split
+from tensorflow import keras
 
-class IMDB_Dataset(T.utils.data.Dataset):
-  # each line: 20 token IDs, 0 or 1 label. space delimited
-  def __init__(self, src_file):
-    all_xy = np.loadtxt(src_file, usecols=range(0,21),
-      delimiter=" ", comments="#", dtype=np.int64)
-    tmp_x = all_xy[:,0:20]   # cols [0,20) = [0,19]
-    tmp_y = all_xy[:,20]     # all rows, just col 20
-    self.x_data = T.tensor(tmp_x, dtype=T.int64) 
-    self.y_data = T.tensor(tmp_y, dtype=T.int64)  # CE loss
+fp = '/tmp/imdb_sentiment.csv'
+fp = '/tmp/waimai_10k.csv'
+df = pd.read_csv(fp)
 
-  def __len__(self):
-    return len(self.x_data)
 
-  def __getitem__(self, idx):
-    token_ids = self.x_data[idx]
-    trgts = self.y_data[idx] 
-    return (token_ids, trgts)
+def to_chars(text: str):
+    """ Split Chinese to characters
+    """
+    return tf.strings.unicode_split(text,
+                                    input_encoding='UTF-8',
+                                    errors="ignore")
 
-    
+
+# df['review'] = df.review.apply(lambda x: ' '.join(jieba.cut(x)))
+train, test = train_test_split(df)
+train_dataset = tf.data.Dataset.from_tensor_slices(train.review)
+max_features = 10000     # Maximum vocab size.
+max_len = 50     # Sequence length to pad the outputs to.
+
+# Create the layer.
+
+
+def custom_standardization(input_data):
+    return tf.strings.regex_replace('/'.join(jieba.lcut(input_data)), '/', ' ')
+
+
+vectorize_layer = tf.keras.layers.TextVectorization(
+    max_tokens=max_features,
+    output_mode='int',
+    output_sequence_length=max_len,
+    split='character')
+
+# split='whitespace')
+vectorize_layer.adapt(train_dataset.batch(64))
+
+
+def vectorize_text(text, label):
+    text = tf.expand_dims(text, -1)
+    return vectorize_layer(text), label
+
+
+print(random.sample(vectorize_layer.get_vocabulary(), 10))
+
+xs = vectorize_layer(['每次点的都够吃两次', '味道正宗，量大内容多'])
+print(xs)

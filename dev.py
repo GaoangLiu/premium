@@ -13,15 +13,18 @@ import numpy as np
 import pandas as pd
 from rich import print
 
-from premium.experimental.myfasttext import benchmark
-from premium.models.nn import NNTouchStone
+from premium.models.nn import BiLSTM, NNTouchStone
 
+filepath = '/tmp/1000.csv'
 filepath = '/tmp/imdb_sentiment.csv'
+filepath = '/tmp/waimai_10k.csv'
 df = pd.read_csv(filepath)
-df = df.sample(frac=0.1)
-targets = df.sentiment.values
-# df['text'] = df.review
-# df['target'] = targets
-# benchmark(df)
-clf = NNTouchStone(df.review, targets, max_length=200)
-clf.pipeline()
+df['text'] = df.review
+df['target'] = df.label
+if 0:
+    from premium.experimental.myfasttext import benchmark
+    benchmark(df)
+clf = BiLSTM(max_feature=20000,
+             max_length=200,
+             vectorizer_split_strategy='character')
+clf.benchmark(df, epochs=30, batch_size=64)
