@@ -1,22 +1,23 @@
 #!/usr/bin/env python
+from premium.utils import auto_set_label_num
+from typing import Callable, Dict, List, Tuple, Union
+
 import codefast as cf
 import numpy as np  # linear algebra
+import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
+from tensorflow import keras
+from tensorflow.keras import layers
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import (GRU, LSTM, Bidirectional, Dense, Dropout,
                                      Embedding, GlobalMaxPool1D, Input)
-from tensorflow.keras.preprocessing import sequence
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 import premium as pm
 from premium.data.postprocess import get_binary_prediction
 from premium.data.preprocess import pad_sequences, tokenize
 from premium.models.model_config import KerasCallbacks
-from tensorflow.keras import layers
-from tensorflow import keras
-import pandas as pd
-from typing import List, Dict, Tuple, Callable, Union
 
 
 def to_chars(text: str):
@@ -30,11 +31,14 @@ def to_chars(text: str):
 
 
 class BiLSTM(object):
-    def __init__(self,
-                 max_feature: int = 50000,
-                 max_length: int = 300,
-                 embedding_dim: int = 200,
-                 vectorizer_split_strategy: Union[Callable, str] = 'whitespace') -> None:
+
+    def __init__(
+            self,
+            max_feature: int = 50000,
+            max_length: int = 300,
+            embedding_dim: int = 200,
+            vectorizer_split_strategy: Union[Callable,
+                                             str] = 'whitespace') -> None:
         """ LSTM Binary classifcation model
         Inputs: 
             vectororizer_split_strategy: split stratergy. Use whitespace for English and
@@ -45,22 +49,25 @@ class BiLSTM(object):
         self.embedding_dim = embedding_dim
         self.keras_callbacks = KerasCallbacks()
         self.vectorizer_split_strategy = vectorizer_split_strategy
-        args = {'max_length': self.max_length,
-                'embeding_dim': self.embedding_dim, 'max_feature': self.max_feature}
+        args = {
+            'max_length': self.max_length,
+            'embeding_dim': self.embedding_dim,
+            'max_feature': self.max_feature
+        }
         cf.info('args: {}'.format(args))
 
     def vectorize(self, df: pd.DataFrame) -> Tuple:
         """Split dataset into (train, test). Vectorize on train corpus.
         """
+        df.dropna(inplace=True)
         df_train, df_test = train_test_split(df)
-        train_dataset = tf.data.Dataset.from_tensor_slices(df_train.text)
 
         vectorize_layer = tf.keras.layers.TextVectorization(
             max_tokens=self.max_feature,
             output_mode='int',
-            output_sequence_length=self.max_length, split=self.vectorizer_split_strategy)
-        vectorize_layer.adapt(train_dataset.batch(64))
-
+            output_sequence_length=self.max_length,
+            split=self.vectorizer_split_strategy)
+        vectorize_layer.adapt(df_train.text)
         cf.info('vectorizing complete')
         return (vectorize_layer(df_train.text),
                 df_train.target), (vectorize_layer(df_test.text),
@@ -68,10 +75,10 @@ class BiLSTM(object):
 
     def build_model(self):
         model = tf.keras.Sequential([
-            layers.Embedding(self.max_feature+1, self.embedding_dim),
+            layers.Embedding(self.max_feature + 1, self.embedding_dim),
             layers.SpatialDropout1D(0.2),
-            layers.Bidirectional(layers.LSTM(
-                128, return_sequences=True, dropout=0.2)),
+            layers.Bidirectional(
+                layers.LSTM(128, return_sequences=True, dropout=0.2)),
             layers.Dropout(0.4),
             layers.Dense(64),
             layers.Dropout(0.4),
@@ -93,6 +100,7 @@ class BiLSTM(object):
             epochs: int = 5):
         callbacks = self.keras_callbacks.some(
             ['early_stopping', 'reduce_lr', 'csv_logger'])
+
         history = model.fit(train_ds[0],
                             train_ds[1],
                             batch_size=batch_size,
@@ -109,7 +117,10 @@ class BiLSTM(object):
                                   verbose=1,
                                   use_multiprocessing=True)
 
-    def benchmark(self, df: pd.DataFrame, batch_size: int = 32, epochs: int = 3):
+    def benchmark(self,
+                  df: pd.DataFrame,
+                  batch_size: int = 32,
+                  epochs: int = 3):
         """Do a quick benchmark on given dataset in format
         target, text
         1, some text
@@ -118,9 +129,46 @@ class BiLSTM(object):
         assert 'text' in df.columns, 'text must be in columns'
         train_ds, test_ds = self.vectorize(df)
         model = self.build_model()
-        history, _ = self.fit(train_ds, test_ds, model,
-                              epochs=epochs, batch_size=batch_size)
+        history, _ = self.fit(train_ds,
+                              test_ds,
+                              model,
+                              epochs=epochs,
+                              batch_size=batch_size)
         return history
+
+
+class MultiClassifier(BiLSTM):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.label_number = 0
+
+    def vectorize(self, df: pd.DataFrame) -> Tuple:
+        # Vectorize input texts, and automatically infer label number.
+        self.label_number = len(df.target.unique())
+        cf.info('label_number: {}'.format(self.label_number))
+        self.lable_map, y_new = auto_set_label_num(df.target)
+        df['target'] = y_new
+        return super().vectorize(df)
+
+    def build_model(self):
+        model = tf.keras.Sequential([
+            layers.Embedding(self.max_feature + 1,
+                             self.embedding_dim, input_length=self.max_length),
+            layers.Flatten(),
+            LSTM(128, return_sequences=True),
+            layers.Dense(64),
+            layers.Dropout(0.4),
+            layers.Dense(self.label_number, activation='softmax')
+        ])
+        print(model.summary())
+        model.compile(loss='sparse_categorical_crossentropy',
+                      #   tf.losses.SparseCategoricalCrossentropy(),
+                      optimizer=tf.keras.optimizers.Adam(0.001),
+                      metrics=['sparse_categorical_accuracy'])
+        # tf.keras.metrics.SparseCategoricalAccuracy()])
+
+        cf.info('model was built.')
+        return model
 
 
 def build_bilstm(maxlen: int, max_feature: int, embed_size: int):
@@ -150,6 +198,7 @@ def optimal_batch_size(sequence_size: int) -> int:
 
 
 class NNTouchStone(object):
+
     def __init__(self,
                  X,
                  y,
@@ -223,8 +272,8 @@ class NNTouchStone(object):
 
         self.max_feature = len(self.word_index)
         embed_size = all_embeddings.shape[1]
-        self.embedding_matrix = np.random.normal(
-            emb_mean, emb_std, (self.max_feature, embed_size))
+        self.embedding_matrix = np.random.normal(emb_mean, emb_std,
+                                                 (self.max_feature, embed_size))
 
         missed, hit = 0, 0
         for word, i in self.word_index.items():

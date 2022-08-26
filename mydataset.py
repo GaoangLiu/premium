@@ -19,7 +19,11 @@ from tensorflow import keras
 
 fp = '/tmp/imdb_sentiment.csv'
 fp = '/tmp/waimai_10k.csv'
+# fp = '/tmp/online_shopping_10_cats.csv'
+fp = 'x.csv'
 df = pd.read_csv(fp)
+df = df.dropna(axis=0, how='any')
+df = df[df['review'].apply(lambda x: len(x) > 10)]
 
 
 def to_chars(text: str):
@@ -32,7 +36,8 @@ def to_chars(text: str):
 
 # df['review'] = df.review.apply(lambda x: ' '.join(jieba.cut(x)))
 train, test = train_test_split(df)
-train_dataset = tf.data.Dataset.from_tensor_slices(train.review)
+# train_dataset = tf.data.Dataset.from_tensor_slices(train.review)
+# train.to_dict(orient='list'))
 max_features = 10000     # Maximum vocab size.
 max_len = 50     # Sequence length to pad the outputs to.
 
@@ -50,7 +55,7 @@ vectorize_layer = tf.keras.layers.TextVectorization(
     split='character')
 
 # split='whitespace')
-vectorize_layer.adapt(train_dataset.batch(64))
+vectorize_layer.adapt(train.review)
 
 
 def vectorize_text(text, label):

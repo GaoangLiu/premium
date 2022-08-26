@@ -13,18 +13,25 @@ import numpy as np
 import pandas as pd
 from rich import print
 
-from premium.models.nn import BiLSTM, NNTouchStone
+from premium.models.nn import BiLSTM, MultiClassifier, NNTouchStone
 
 filepath = '/tmp/1000.csv'
 filepath = '/tmp/imdb_sentiment.csv'
 filepath = '/tmp/waimai_10k.csv'
+filepath = '/tmp/online_shopping_10_cats.csv'
 df = pd.read_csv(filepath)
+df.dropna(inplace=True)
 df['text'] = df.review
-df['target'] = df.label
+df['target'] = df.cat
 if 0:
     from premium.experimental.myfasttext import benchmark
     benchmark(df)
 clf = BiLSTM(max_feature=20000,
              max_length=200,
              vectorizer_split_strategy='character')
-clf.benchmark(df, epochs=30, batch_size=64)
+
+clf = MultiClassifier(max_feature=20000,
+                      max_length=200,
+                      vectorizer_split_strategy='character')
+
+clf.benchmark(df, epochs=3, batch_size=64)
