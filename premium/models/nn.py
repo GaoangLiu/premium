@@ -154,8 +154,12 @@ class MultiClassifier(BiLSTM):
         model = tf.keras.Sequential([
             layers.Embedding(self.max_feature + 1,
                              self.embedding_dim, input_length=self.max_length),
-            layers.Flatten(),
-            LSTM(128, return_sequences=True),
+            LSTM(128, dropout=0.2),
+            layers.Dropout(0.4),
+            layers.Dense(64),
+            layers.Dropout(0.4),
+            layers.Dense(64),
+            layers.Dropout(0.4),
             layers.Dense(64),
             layers.Dropout(0.4),
             layers.Dense(self.label_number, activation='softmax')

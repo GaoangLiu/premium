@@ -34,4 +34,4 @@ clf = MultiClassifier(max_feature=20000,
                       max_length=200,
                       vectorizer_split_strategy='character')
 
-clf.benchmark(df, epochs=3, batch_size=64)
+clf.benchmark(df, epochs=20, batch_size=64)
