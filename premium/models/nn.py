@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from premium.utils import auto_set_label_num
+import random
 from typing import Callable, Dict, List, Tuple, Union
 
 import codefast as cf
@@ -13,12 +13,12 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import (GRU, LSTM, Bidirectional, Dense, Dropout,
                                      Embedding, GlobalMaxPool1D, Input)
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import random
 
 import premium as pm
 from premium.data.postprocess import get_binary_prediction
 from premium.data.preprocess import pad_sequences, tokenize
 from premium.models.model_config import KerasCallbacks
+from premium.utils import auto_set_label_num
 
 
 def to_chars(text: str):
@@ -40,6 +40,7 @@ class BinClassifier(object):
         max_feature: int = 20000,
         max_length: int = 100,
         embedding_dim: int = 200,
+        pretrained_vector_path: str = None,
         vectorizer_split_strategy: Union[Callable,
                                          str] = 'whitespace') -> None:
         """ LSTM Binary classifcation model
@@ -52,10 +53,13 @@ class BinClassifier(object):
         self.embedding_dim = embedding_dim
         self.keras_callbacks = KerasCallbacks()
         self.vectorizer_split_strategy = vectorizer_split_strategy
+        self.prerained_vector_path = pretrained_vector_path
         args = {
             'max_length': self.max_length,
             'embeding_dim': self.embedding_dim,
-            'max_feature': self.max_feature
+            'max_feature': self.max_feature,
+            'vectorizer_split_strategy': self.vectorizer_split_strategy,
+            'prerained_vector_path': self.prerained_vector_path
         }
         cf.info('args: {}'.format(args))
 
@@ -80,36 +84,43 @@ class BinClassifier(object):
                 df_train.target), (vectorize_layer(df_test.text),
                                    df_test.target)
 
-    def tokenize(self, df: pd.DataFrame) -> Tuple:
+    def tokenize(self, texts: List[str]) -> Tuple:
         tokenizer = tf.keras.preprocessing.text.Tokenizer()
-        tokenizer.fit_on_texts(df.text)
-        text_sequences = tokenizer.texts_to_sequences(df.text)
-        text_sequences = tf.keras.preprocessing.sequence.pad_sequences(text_sequences,
-                                                                       padding='post')
+        tokenizer.fit_on_texts(texts)
+        text_sequences = tokenizer.texts_to_sequences(texts)
+        text_sequences = tf.keras.preprocessing.sequence.pad_sequences(
+            text_sequences, padding='pre', maxlen=self.max_length)
+        self.vocab_size = len(tokenizer.word_index) + 1
+        event = {
+            'msg': "tokenizing completes",
+            'vocab_size': self.vocab_size,
+            'max_length': self.max_length
+        }
+        cf.info(event)
         return text_sequences, tokenizer
 
-    def get_embed_matrix(self, tokenizer: tf.keras.preprocessing.text.Tokenizer):
+    def get_embed_matrix(self,
+                         tokenizer: tf.keras.preprocessing.text.Tokenizer, pretrained_vector_path: str):
         """Get embedding matrix from tokenizer
         """
         from gensim.models import KeyedVectors
-        file_name = 'glove.twitter.27B.25d.txt'
-        vectros = KeyedVectors.load_word2vec_format(file_name)
+        vectors = KeyedVectors.load_word2vec_format(pretrained_vector_path)
         vocab_size = len(tokenizer.word_index) + 1
         weight_matrix = np.zeros((vocab_size, self.embedding_dim))
         for word, i in tokenizer.word_index.items():
             try:
-                weight_matrix[i] = vectros[word]
+                weight_matrix[i] = vectors[word]
             except KeyError:
                 weight_matrix[i] = np.random.uniform(-5, 5, self.embedding_dim)
         return weight_matrix
 
-    def build_model(self, embed_matrix: np.ndarray=None) -> tf.keras.Model:
+    def build_model(self, embed_matrix: np.ndarray = None) -> tf.keras.Model:
         sentence_input = tf.keras.layers.Input(shape=(self.max_length, ))
-        x = tf.keras.layers.Embedding(self.max_feature,
-                                      self.embedding_dim,
-                                      input_length=self.max_length)(sentence_input)
+        x = tf.keras.layers.Embedding(
+            self.vocab_size, self.embedding_dim,
+            input_length=self.max_length)(sentence_input)
         if embed_matrix is not None:
-            x = tf.keras.layers.Embedding(self.max_feature,
+            x = tf.keras.layers.Embedding(self.vocab_size,
                                           self.embedding_dim,
                                           weights=[embed_matrix],
                                           input_length=self.max_length,
@@ -125,6 +136,8 @@ class BinClassifier(object):
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy'])
+        cf.info('model compiled')
+        print(model.summary())
         return model
 
     def fit(self,
@@ -161,14 +174,17 @@ class BinClassifier(object):
         """
         assert 'target' in df.columns, 'target must be in columns'
         assert 'text' in df.columns, 'text must be in columns'
-        Xt, Xv = train_test_split(df)
-        X_train, tokenizer = self.tokenize(Xt.text)
-        X_test = tokenizer.texts_to_sequences(Xv.text)
-        model = self.build_model()
-        history, _ = self.fit((X_train, Xt.target), (X_test, Xv.target),
-                              model,
-                              epochs=epochs,
-                              batch_size=batch_size)
+        X, tokenizer = self.tokenize(df.text)
+        if self.prerained_vector_path:
+            embed_matrix = self.get_embed_matrix(tokenizer, self.prerained_vector_path)
+            model = self.build_model(embed_matrix)
+        else:
+            model = self.build_model()
+        history = model.fit(X,
+                            df.target,
+                            validation_split=0.2,
+                            batch_size=batch_size,
+                            epochs=epochs)
         return history
 
 
@@ -213,24 +229,6 @@ class MultiClassifier(BinClassifier):
 
         cf.info('model was built.')
         return model
-
-
-def build_bilstm(maxlen: int, max_feature: int, embed_size: int):
-    inp = Input(shape=(maxlen, ))
-    layer = Embedding(max_feature, embed_size)(inp)
-    layer = Bidirectional(LSTM(50, return_sequences=True))(layer)
-    layer = GlobalMaxPool1D()(layer)
-    layer = Dropout(0.1)(layer)
-    layer = Dense(50, activation="relu")(layer)
-    layer = Dropout(0.1)(layer)
-    opt = Dense(6, activation="sigmoid")(layer)
-    model = keras.Model(inputs=inp, outputs=opt)
-    model.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['accuracy'])
-    model.summary()
-
-    return model
 
 
 def optimal_batch_size(sequence_size: int) -> int:

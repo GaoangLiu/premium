@@ -13,7 +13,7 @@ from premium.utils import md5sum
 
 
 class Urls(object):
-    prefix = 'https://file.ddot.cc/corpus'
+    prefix = 'https://filedn.com/lCdtpv3siVybVynPcgXgnPm/corpus'
 
 
 Path = TypeVar('Path', str, List[str])
@@ -138,6 +138,11 @@ word2vec = WordToVector()
 
 
 class Downloader(object):
+    def twitter_disaster(self):
+        """ Twitter real disaster or not """
+        cf.info('Downloading twitter disaster data')
+        fetch_data('twitter_disaster.csv', sub_dir='classification')
+
     def imdb(self):
         """ Englis imdb sentiment analysis 50000
         """
