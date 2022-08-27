@@ -25,6 +25,7 @@ def auto_set_label_num(y: List[Union[str,
     new_y = np.array([label_map[yi] for yi in y])
     cf.info('Export {label, id} map to /tmp/label_map.json')
     cf.js.write(label_map, '/tmp/label_map.json')
+    cf.info(label_map)
     return label_map, new_y
 
     

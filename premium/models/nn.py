@@ -13,6 +13,7 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import (GRU, LSTM, Bidirectional, Dense, Dropout,
                                      Embedding, GlobalMaxPool1D, Input)
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+import random
 
 import premium as pm
 from premium.data.postprocess import get_binary_prediction
@@ -30,15 +31,17 @@ def to_chars(text: str):
                                     errors="ignore")
 
 
-class BiLSTM(object):
+class BinClassifier(object):
+    """ Binary LSTM classifier
+    """
 
     def __init__(
-            self,
-            max_feature: int = 50000,
-            max_length: int = 300,
-            embedding_dim: int = 200,
-            vectorizer_split_strategy: Union[Callable,
-                                             str] = 'whitespace') -> None:
+        self,
+        max_feature: int = 20000,
+        max_length: int = 100,
+        embedding_dim: int = 200,
+        vectorizer_split_strategy: Union[Callable,
+                                         str] = 'whitespace') -> None:
         """ LSTM Binary classifcation model
         Inputs: 
             vectororizer_split_strategy: split stratergy. Use whitespace for English and
@@ -68,28 +71,60 @@ class BiLSTM(object):
             output_sequence_length=self.max_length,
             split=self.vectorizer_split_strategy)
         vectorize_layer.adapt(df_train.text)
-        cf.info('vectorizing complete')
+        event = {
+            'msg': "vectorizing completes",
+            "samples": random.sample(vectorize_layer.get_vocabulary(), 10)
+        }
+        cf.info(event)
         return (vectorize_layer(df_train.text),
                 df_train.target), (vectorize_layer(df_test.text),
                                    df_test.target)
 
-    def build_model(self):
-        model = tf.keras.Sequential([
-            layers.Embedding(self.max_feature + 1, self.embedding_dim),
-            layers.SpatialDropout1D(0.2),
-            layers.Bidirectional(
-                layers.LSTM(128, return_sequences=True, dropout=0.2)),
-            layers.Dropout(0.4),
-            layers.Dense(64),
-            layers.Dropout(0.4),
-            layers.Dense(1)
-        ])
-        print(model.summary())
-        model.compile(loss=tf.losses.BinaryCrossentropy(),
-                      optimizer=tf.keras.optimizers.Adam(0.001),
-                      metrics=['accuracy'])
+    def tokenize(self, df: pd.DataFrame) -> Tuple:
+        tokenizer = tf.keras.preprocessing.text.Tokenizer()
+        tokenizer.fit_on_texts(df.text)
+        text_sequences = tokenizer.texts_to_sequences(df.text)
+        text_sequences = tf.keras.preprocessing.sequence.pad_sequences(text_sequences,
+                                                                       padding='post')
+        return text_sequences, tokenizer
 
-        cf.info('model was built.')
+    def get_embed_matrix(self, tokenizer: tf.keras.preprocessing.text.Tokenizer):
+        """Get embedding matrix from tokenizer
+        """
+        from gensim.models import KeyedVectors
+        file_name = 'glove.twitter.27B.25d.txt'
+        vectros = KeyedVectors.load_word2vec_format(file_name)
+        vocab_size = len(tokenizer.word_index) + 1
+        weight_matrix = np.zeros((vocab_size, self.embedding_dim))
+        for word, i in tokenizer.word_index.items():
+            try:
+                weight_matrix[i] = vectros[word]
+            except KeyError:
+                weight_matrix[i] = np.random.uniform(-5, 5, self.embedding_dim)
+        return weight_matrix
+
+    def build_model(self, embed_matrix: np.ndarray=None) -> tf.keras.Model:
+        sentence_input = tf.keras.layers.Input(shape=(self.max_length, ))
+        x = tf.keras.layers.Embedding(self.max_feature,
+                                      self.embedding_dim,
+                                      input_length=self.max_length)(sentence_input)
+        if embed_matrix is not None:
+            x = tf.keras.layers.Embedding(self.max_feature,
+                                          self.embedding_dim,
+                                          weights=[embed_matrix],
+                                          input_length=self.max_length,
+                                          trainable=False)(sentence_input)
+        x = tf.keras.layers.LSTM(100, return_sequences=True)(x)
+        x = tf.keras.layers.Dropout(0.5)(x)
+        x = tf.keras.layers.LSTM(100)(x)
+        x = tf.keras.layers.Dropout(0.3)(x)
+        x = tf.keras.layers.Dense(100, activation='selu')(x)
+        output = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+        model = tf.keras.Model(sentence_input, output)
+
+        model.compile(loss='binary_crossentropy',
+                      optimizer='adam',
+                      metrics=['accuracy'])
         return model
 
     def fit(self,
@@ -123,21 +158,24 @@ class BiLSTM(object):
                   epochs: int = 3):
         """Do a quick benchmark on given dataset in format
         target, text
-        1, some text
         """
         assert 'target' in df.columns, 'target must be in columns'
         assert 'text' in df.columns, 'text must be in columns'
-        train_ds, test_ds = self.vectorize(df)
+        Xt, Xv = train_test_split(df)
+        X_train, tokenizer = self.tokenize(Xt.text)
+        X_test = tokenizer.texts_to_sequences(Xv.text)
         model = self.build_model()
-        history, _ = self.fit(train_ds,
-                              test_ds,
+        history, _ = self.fit((X_train, Xt.target), (X_test, Xv.target),
                               model,
                               epochs=epochs,
                               batch_size=batch_size)
         return history
 
 
-class MultiClassifier(BiLSTM):
+class MultiClassifier(BinClassifier):
+    """Multi-class LSTM classifier
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.label_number = 0
@@ -153,7 +191,8 @@ class MultiClassifier(BiLSTM):
     def build_model(self):
         model = tf.keras.Sequential([
             layers.Embedding(self.max_feature + 1,
-                             self.embedding_dim, input_length=self.max_length),
+                             self.embedding_dim,
+                             input_length=self.max_length),
             LSTM(128, dropout=0.2),
             layers.Dropout(0.4),
             layers.Dense(64),
@@ -165,10 +204,11 @@ class MultiClassifier(BiLSTM):
             layers.Dense(self.label_number, activation='softmax')
         ])
         print(model.summary())
-        model.compile(loss='sparse_categorical_crossentropy',
-                      #   tf.losses.SparseCategoricalCrossentropy(),
-                      optimizer=tf.keras.optimizers.Adam(0.001),
-                      metrics=['sparse_categorical_accuracy'])
+        model.compile(
+            loss='sparse_categorical_crossentropy',
+            #   tf.losses.SparseCategoricalCrossentropy(),
+            optimizer=tf.keras.optimizers.Adam(0.01),
+            metrics=['sparse_categorical_accuracy'])
         # tf.keras.metrics.SparseCategoricalAccuracy()])
 
         cf.info('model was built.')
@@ -202,7 +242,6 @@ def optimal_batch_size(sequence_size: int) -> int:
 
 
 class NNTouchStone(object):
-
     def __init__(self,
                  X,
                  y,
@@ -276,8 +315,8 @@ class NNTouchStone(object):
 
         self.max_feature = len(self.word_index)
         embed_size = all_embeddings.shape[1]
-        self.embedding_matrix = np.random.normal(emb_mean, emb_std,
-                                                 (self.max_feature, embed_size))
+        self.embedding_matrix = np.random.normal(
+            emb_mean, emb_std, (self.max_feature, embed_size))
 
         missed, hit = 0, 0
         for word, i in self.word_index.items():
