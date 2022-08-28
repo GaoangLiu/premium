@@ -1,5 +1,8 @@
 #!/usr/bin/env python
+import os
+import pickle
 import random
+from gc import callbacks
 from typing import Callable, Dict, List, Tuple, Union
 
 import codefast as cf
@@ -9,7 +12,6 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import (GRU, LSTM, Bidirectional, Dense, Dropout,
                                      Embedding, GlobalMaxPool1D, Input)
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -53,6 +55,9 @@ class BinClassifier(object):
         self.embedding_dim = embedding_dim
         self.keras_callbacks = KerasCallbacks()
         self.working_dir = working_dir
+        if working_dir:
+            os.system(f"mkdir -p {working_dir}")
+
         self.vectorizer_split_strategy = vectorizer_split_strategy
         self.prerained_vector_path = pretrained_vector_path
         args = {
@@ -85,6 +90,9 @@ class BinClassifier(object):
                 df_train.target), (vectorize_layer(df_test.text),
                                    df_test.target)
 
+    def get_tokenizer_path(self) -> str:
+        return os.path.join(self.working_dir, 'tokenizer.pickle')
+
     def tokenize(self, texts: List[str]) -> Tuple:
         tokenizer = tf.keras.preprocessing.text.Tokenizer()
         tokenizer.fit_on_texts(texts)
@@ -92,12 +100,15 @@ class BinClassifier(object):
         text_sequences = tf.keras.preprocessing.sequence.pad_sequences(
             text_sequences, padding='pre', maxlen=self.max_length)
         self.vocab_size = len(tokenizer.word_index) + 1
+
         event = {
             'msg': "tokenizing completes",
             'vocab_size': self.vocab_size,
-            'max_length': self.max_length
+            'max_length': self.max_length,
+            'tokenizer file': self.get_tokenizer_path()
         }
         cf.info(event)
+        pickle.dump(tokenizer, open(self.get_tokenizer_path(), 'wb'))
         return text_sequences, tokenizer
 
     def get_embed_matrix(self,
@@ -189,6 +200,13 @@ class BinClassifier(object):
                             epochs=epochs)
         return history
 
+    def load_pretrained(self, args: Dict):
+        """Load pretrained model, tokenizer, id-target map
+        from args
+        """
+        for k, v in args.items():
+            setattr(self, k, v)
+
 
 class MultiClassifier(BinClassifier):
     """Multi-class LSTM classifier
@@ -231,22 +249,27 @@ class MultiClassifier(BinClassifier):
         return model
 
     def to_categorical(self, y):
-        targets = set(y)
-        self.target2idx = {t: i for i, t in enumerate(targets)}
-        self.idx2target = {i: t for i, t in enumerate(targets)}
+        targets = list(set(y))
+        self.target2idx = {t: int(i) for i, t in enumerate(targets)}
+        self.idx2target = {int(i): t for i, t in enumerate(targets)}
         y_new = np.array([self.target2idx[t] for t in y])
+        idx2target_path = os.path.join(self.working_dir, 'idx2target.json')
+        cf.js.write(self.idx2target, idx2target_path)
         cf.info('target to index mapping: {}'.format(self.target2idx))
         return tf.keras.utils.to_categorical(y_new)
 
     def benchmark(self,
                   df: pd.DataFrame,
                   batch_size: int = 32,
-                  epochs: int = 3):
+                  epochs: int = 3,
+                  save_model=False,
+                  model_name='model.h5'):
         """Do a quick benchmark on given dataset in format
         target, text
         """
         assert 'target' in df.columns, 'target must be in columns'
         assert 'text' in df.columns, 'text must be in columns'
+        df = df.sample(frac=1)
         self.label_number = self.get_label_number(df)
         X, self.tokenizer = self.tokenize(df.text)
         y = self.to_categorical(df.target)
@@ -257,7 +280,17 @@ class MultiClassifier(BinClassifier):
                                  y,
                                  validation_split=0.2,
                                  batch_size=batch_size,
-                                 epochs=epochs)
+                                 epochs=epochs,
+                                 use_multiprocessing=True,
+                                 callbacks=self.keras_callbacks.some([
+                                     'early_stopping', 'reduce_lr',
+                                     'csv_logger'
+                                 ]))
+        if save_model:
+            save_path = os.path.join(self.working_dir, model_name)
+            cf.info('saving model to {}'.format(save_path))
+            self.model.save(save_path)
+
         return self.model, history
 
 

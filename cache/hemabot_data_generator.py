@@ -5,36 +5,34 @@ we use a machine learning model to predict the message type.
 """
 import datetime
 import random
+from typing import List
 
 import codefast as cf
-import fasttext
 import pandas as pd
 from faker import Faker
 
-from premium.experimental.myfasttext import benchmark as ftb
-from premium.models.bert import BertClassifier
-
 faker = Faker()
 
-KEYWORDS_MAP = [('oncemessage',
-                 ['oncemessage', 'onecemesage', 'oncemsg', 'oncemassage']),
-                ('weather', [
-                    'weather',
-                    'how is the weather',
-                    'how is weather',
-                    "how's weather",
-                    "what is the weather",
-                    "what's weather",
-                    'tainqi',
-                    'tianqi',
-                    'tianqiyubao',
-                ]),
-                ('avatar', [
-                    'avadar', 'avatar', 'touxiang', 'headiamge', 'headimage',
-                    'head iamge', 'avatarimg', 'avatarimgs'
-                ]), ('deepl', ['deepl', 'deelp', 'translate', 'deeptranslate']),
-                ('pcloud', ['pcloud', 'pclouduplaod', 'pcloudupload']),
-                ('twitter', ['twitter.com'])]
+KEYWORDS_MAP = [
+    ('oncemessage', ['oncemessage', 'onecemesage', 'oncemsg', 'oncemassage']),
+    ('weather', [
+        'weather',
+        'how is the weather',
+        'how is weather',
+        "how's weather",
+        "what is the weather",
+        "what's weather",
+        'tainqi',
+        'tianqi',
+        'tianqiyubao',
+    ]),
+    ('avatar', [
+        'avadar', 'avatar', 'touxiang', 'headiamge', 'headimage', 'head iamge',
+        'avatarimg', 'avatarimgs'
+    ]), ('deepl', ['deepl', 'deelp', 'translate', 'deeptranslate']),
+    ('pcloud', ['pcloud', 'pclouduplaod', 'pcloudupload']),
+    ('twitter', ['twitter.com'])
+]
 
 
 def split_url(url: str) -> str:
@@ -56,7 +54,7 @@ def generate_twitter_url(user_name: str) -> str:
 
 def generate_pcloud_url() -> str:
     hostname = faker.hostname()
-    if random.randint(0, 10) > 3:     # add noise
+    if random.randint(0, 10) > 3:  # add noise
         user = faker.user_name()
         hostname = generate_twitter_url(user).replace('https://', '')
     http = 'http ' if random.randint(0, 1) == 0 else 'https '
@@ -69,28 +67,60 @@ def generate_pcloud_url() -> str:
     return split_url(url)
 
 
-def generate_deepl(text: str) -> str:
-    if random.randint(0, 1) == 0:
-        return text
-    else:
-        words = text.split(' ')
-        rand_index = random.randint(1,
-                                    len(words) -
-                                    1)     # insert after first word
-        # Reduce confusion with weather labels and onemessage labels
-        if random.randint(0, 1) == 0:
-            weather_list = KEYWORDS_MAP[1][1]
-            noise = random.choice(weather_list)
-        else:
-            message_list = KEYWORDS_MAP[0][1]
-            noise = random.choice(message_list)
-        words.insert(rand_index, noise)
-        if random.randint(0, 10) == 1:
-            return random.choice(['how are you', 'are you okay'])
-        return ' '.join(words)
+def generate_deepl(count: int = 10) -> List[str]:
+    res = []
+    for i in range(count):
+        nb_sentences = random.randint(1, 10)
+        content = faker.paragraph(nb_sentences=nb_sentences,
+                                  variable_nb_sentences=True)
+        res.append('{}'.format(content))
+    return res
+
+
+xs = generate_deepl(1000)
+for x in xs:
+    print('deepl,{}'.format(x))
+
+
+def generate_oncemessage(count: int = 100) -> str:
+    # Generate oncemessage
+    class TimeFormat(object):
+        def __init__(self):
+            self.seprators = ['-', ':', ' ', '/']
+
+        def seconds(self):
+            return str(random.randint(0, 1 << 15))
+
+        def hour_minute(self):
+            return '{}{}{}'.format(random.randint(0, 23),
+                                   random.choice(self.seprators),
+                                   random.randint(0, 59))
+
+        def date_time(self):
+            sep = random.choice(self.seprators)
+            return '{}{}{} {}{}{}{}{}'.format(random.randint(1, 12), sep,
+                                              random.randint(1, 31),
+                                              random.randint(0, 23), sep,
+                                              random.randint(0, 59), sep,
+                                              random.randint(0, 59))
+
+    old_timer = TimeFormat()
+    time_stratergies = [
+        old_timer.seconds, old_timer.hour_minute, old_timer.date_time
+    ]
+    res = []
+    hints = ['oncemessage', 'onecemesage', 'oncemsg', 'oncemassage']
+    for _ in range(count):
+        hint = random.choice(hints)
+        time_stratergy = random.choice(time_stratergies)
+        content = faker.paragraph(nb_sentences=1, variable_nb_sentences=True)
+        res.append('{} {} {}'.format(hint, time_stratergy(), content))
+    return res
 
 
 def add_sample(row: pd.Series) -> str:
+    # create hemabot classifier data based on twitter sentiment
+    # dataset
     text, key = row['tweet'], row['target']
     pair = next((p for p in KEYWORDS_MAP if key == p[0]), None)
     assert pair is not None, "keyword not found"
@@ -155,14 +185,3 @@ def try_bert():
     label_map = dict((v, k) for k, v in label_map.items())
     for i, text in enumerate(test_texts):
         print(label_map[xs[i]], text)
-
-
-try_bert()
-exit(0)
-
-model_path = 'localdata/hema_model.bin'
-model = fasttext.load_model(model_path)
-for text in cf.io.read('localdata/test_hema.txt'):
-    text = split_url(text)
-    msg = {'text': text, 'label': model.predict(text)}
-    print(msg)
