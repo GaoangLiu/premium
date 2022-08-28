@@ -18,8 +18,8 @@ from premium.models.nn import BinClassifier, MultiClassifier, NNTouchStone
 filepath = '/tmp/1000.csv'
 filepath = '/tmp/waimai_10k.csv'
 filepath = '/tmp/online_shopping_10_cats.csv'
-filepath = 'localdata/tmp.csv'
-filepath = '/tmp/twitter_disaster.csv'
+filepath = 'localdata/hemabot.csv'
+# filepath = '/tmp/twitter_disaster.csv'
 df = pd.read_csv(filepath)
 df.dropna(inplace=True)
 # df['text'] = df.review
@@ -28,10 +28,6 @@ if 0:
     from premium.experimental.myfasttext import benchmark
     benchmark(df)
 
-clf = MultiClassifier(max_feature=30000,
-                      max_length=200,
-                      vectorizer_split_strategy='character')
-
 clf = BinClassifier(
     max_feature=20000,
     max_length=300,
@@ -39,4 +35,22 @@ clf = BinClassifier(
      # pretrained_vector_path='glove.twitter.27B.25d.txt',
     pretrained_vector_path='glove.6B.100d.txt',
     vectorizer_split_strategy='character')
-clf.benchmark(df, epochs=10, batch_size=32)
+clf = MultiClassifier(max_feature=30000, max_length=200, embedding_dim=100)
+
+model, _ = clf.benchmark(df, epochs=1, batch_size=32)
+
+
+def load_test_data():
+    lines = cf.io.read('localdata/test_hema.txt')
+    lines = [line.strip() for line in lines]
+    lines = [line for line in lines if line]
+    return lines
+
+
+test_data = load_test_data()
+ypreds = clf.predict(test_data)
+ypreds = np.argmax(ypreds, axis=1)
+print(ypreds)
+
+ypreds = [clf.idx2target[i] for i in ypreds]
+print(ypreds)

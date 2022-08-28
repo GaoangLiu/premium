@@ -42,8 +42,9 @@ cf.info(event)
 df['target'] = df.target.map(target2idx)
 
 file_name = 'glove.twitter.27B.25d.txt'
+file_name = 'glove.6B.100d.txt'
 fasttext = KeyedVectors.load_word2vec_format(file_name)
-embedding_dim = 25
+embedding_dim = 100
 print('load complete')
 
 # X = vectorize_layer(df.text.values)
@@ -63,11 +64,12 @@ for word, i in tokenizer.word_index.items():
         weight_matrix[i] = np.random.uniform(-5, 5, embedding_dim)
 
 sentence_input = tf.keras.layers.Input(shape=(max_length, ))
-x = tf.keras.layers.Embedding(vocab_size,
-                              embedding_dim,
-                              weights=[weight_matrix],
-                              input_length=max_length,
-                              trainable=False)(sentence_input)
+x = tf.keras.layers.Embedding(
+    vocab_size,
+    embedding_dim,
+     #   weights=[weight_matrix],
+    input_length=max_length,
+)(sentence_input)
 
 x = tf.keras.layers.LSTM(100, return_sequences=True)(x)
 x = tf.keras.layers.Dropout(0.5)(x)
@@ -80,4 +82,5 @@ model = tf.keras.Model(sentence_input, output)
 model.compile(loss='categorical_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
-model.fit(X, y, validation_split=0.2, epochs=5, batch_size=32)
+model.fit(X, y, validation_split=0.2, epochs=10, batch_size=32)
+model.save('localdata/model.h5')

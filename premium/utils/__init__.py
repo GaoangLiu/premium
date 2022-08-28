@@ -12,7 +12,7 @@ def md5sum(fname):
     
     
 def auto_set_label_num(y: List[Union[str,
-                                     int]]) -> Tuple[Dict, List[int]]:
+                                     int]], working_dir:str='/tmp/') -> Tuple[Dict, List[int]]:
     """ Automatically set the number of labels based on the labels.
     If it is binary classification, then new label is like [0, 1, 1, 0], 
     if it is multi-classification, then new label is like [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -23,8 +23,8 @@ def auto_set_label_num(y: List[Union[str,
     unique_labels = set(y)
     label_map = dict(zip(unique_labels, range(len(unique_labels))))
     new_y = np.array([label_map[yi] for yi in y])
-    cf.info('Export {label, id} map to /tmp/label_map.json')
-    cf.js.write(label_map, '/tmp/label_map.json')
+    cf.info('Export [label, id] map to {}/label_map.json'.format(working_dir))
+    cf.js.write(label_map, '{}/label_map.json'.format(working_dir))
     cf.info(label_map)
     return label_map, new_y
 

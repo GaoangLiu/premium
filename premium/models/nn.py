@@ -34,13 +34,13 @@ def to_chars(text: str):
 class BinClassifier(object):
     """ Binary LSTM classifier
     """
-
     def __init__(
         self,
         max_feature: int = 20000,
         max_length: int = 100,
         embedding_dim: int = 200,
         pretrained_vector_path: str = None,
+        working_dir: str = '/tmp/',
         vectorizer_split_strategy: Union[Callable,
                                          str] = 'whitespace') -> None:
         """ LSTM Binary classifcation model
@@ -52,6 +52,7 @@ class BinClassifier(object):
         self.max_length = max_length
         self.embedding_dim = embedding_dim
         self.keras_callbacks = KerasCallbacks()
+        self.working_dir = working_dir
         self.vectorizer_split_strategy = vectorizer_split_strategy
         self.prerained_vector_path = pretrained_vector_path
         args = {
@@ -100,9 +101,12 @@ class BinClassifier(object):
         return text_sequences, tokenizer
 
     def get_embed_matrix(self,
-                         tokenizer: tf.keras.preprocessing.text.Tokenizer, pretrained_vector_path: str):
+                         tokenizer: tf.keras.preprocessing.text.Tokenizer,
+                         pretrained_vector_path: str):
         """Get embedding matrix from tokenizer
         """
+        if not pretrained_vector_path:
+            return None
         from gensim.models import KeyedVectors
         vectors = KeyedVectors.load_word2vec_format(pretrained_vector_path)
         vocab_size = len(tokenizer.word_index) + 1
@@ -159,11 +163,11 @@ class BinClassifier(object):
 
         return history, model
 
-    def predict(self, X_te):
-        return self.model.predict(X_te,
-                                  batch_size=1024,
-                                  verbose=1,
-                                  use_multiprocessing=True)
+    def predict(self, texts: List[str]):
+        text_sequences = self.tokenizer.texts_to_sequences(texts)
+        text_sequences = tf.keras.preprocessing.sequence.pad_sequences(
+            text_sequences, padding='pre', maxlen=self.max_length)
+        return self.model.predict(text_sequences)
 
     def benchmark(self,
                   df: pd.DataFrame,
@@ -175,11 +179,9 @@ class BinClassifier(object):
         assert 'target' in df.columns, 'target must be in columns'
         assert 'text' in df.columns, 'text must be in columns'
         X, tokenizer = self.tokenize(df.text)
-        if self.prerained_vector_path:
-            embed_matrix = self.get_embed_matrix(tokenizer, self.prerained_vector_path)
-            model = self.build_model(embed_matrix)
-        else:
-            model = self.build_model()
+        embed_matrix = self.get_embed_matrix(tokenizer,
+                                             self.prerained_vector_path)
+        model = self.build_model(embed_matrix)
         history = model.fit(X,
                             df.target,
                             validation_split=0.2,
@@ -191,44 +193,72 @@ class BinClassifier(object):
 class MultiClassifier(BinClassifier):
     """Multi-class LSTM classifier
     """
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.label_number = 0
 
-    def vectorize(self, df: pd.DataFrame) -> Tuple:
-        # Vectorize input texts, and automatically infer label number.
+    def get_label_number(self, df: pd.DataFrame):
+        """Get label number from target column
+        """
         self.label_number = len(df.target.unique())
-        cf.info('label_number: {}'.format(self.label_number))
-        self.lable_map, y_new = auto_set_label_num(df.target)
-        df['target'] = y_new
-        return super().vectorize(df)
+        return self.label_number
 
-    def build_model(self):
-        model = tf.keras.Sequential([
-            layers.Embedding(self.max_feature + 1,
-                             self.embedding_dim,
-                             input_length=self.max_length),
-            LSTM(128, dropout=0.2),
-            layers.Dropout(0.4),
-            layers.Dense(64),
-            layers.Dropout(0.4),
-            layers.Dense(64),
-            layers.Dropout(0.4),
-            layers.Dense(64),
-            layers.Dropout(0.4),
-            layers.Dense(self.label_number, activation='softmax')
-        ])
+    def build_model(self, embed_matrix: np.ndarray = None) -> tf.keras.Model:
+        sentence_input = tf.keras.layers.Input(shape=(self.max_length, ))
+        x = tf.keras.layers.Embedding(
+            self.vocab_size, self.embedding_dim,
+            input_length=self.max_length)(sentence_input)
+        if embed_matrix is not None:
+            x = tf.keras.layers.Embedding(self.vocab_size,
+                                          self.embedding_dim,
+                                          weights=[embed_matrix],
+                                          input_length=self.max_length,
+                                          trainable=False)(sentence_input)
+        x = tf.keras.layers.LSTM(100, return_sequences=True)(x)
+        x = tf.keras.layers.Dropout(0.5)(x)
+        x = tf.keras.layers.LSTM(100)(x)
+        x = tf.keras.layers.Dropout(0.3)(x)
+        x = tf.keras.layers.Dense(20, activation='selu')(x)
+        output = tf.keras.layers.Dense(self.label_number,
+                                       activation='softmax')(x)
+        model = tf.keras.Model(sentence_input, output)
+
+        model.compile(loss='categorical_crossentropy',
+                      optimizer='adam',
+                      metrics=['accuracy'])
+        cf.info('model compiled')
         print(model.summary())
-        model.compile(
-            loss='sparse_categorical_crossentropy',
-            #   tf.losses.SparseCategoricalCrossentropy(),
-            optimizer=tf.keras.optimizers.Adam(0.01),
-            metrics=['sparse_categorical_accuracy'])
-        # tf.keras.metrics.SparseCategoricalAccuracy()])
-
-        cf.info('model was built.')
         return model
+
+    def to_categorical(self, y):
+        targets = set(y)
+        self.target2idx = {t: i for i, t in enumerate(targets)}
+        self.idx2target = {i: t for i, t in enumerate(targets)}
+        y_new = np.array([self.target2idx[t] for t in y])
+        cf.info('target to index mapping: {}'.format(self.target2idx))
+        return tf.keras.utils.to_categorical(y_new)
+
+    def benchmark(self,
+                  df: pd.DataFrame,
+                  batch_size: int = 32,
+                  epochs: int = 3):
+        """Do a quick benchmark on given dataset in format
+        target, text
+        """
+        assert 'target' in df.columns, 'target must be in columns'
+        assert 'text' in df.columns, 'text must be in columns'
+        self.label_number = self.get_label_number(df)
+        X, self.tokenizer = self.tokenize(df.text)
+        y = self.to_categorical(df.target)
+        embed_matrix = self.get_embed_matrix(self.tokenizer,
+                                             self.prerained_vector_path)
+        self.model = self.build_model(embed_matrix)
+        history = self.model.fit(X,
+                                 y,
+                                 validation_split=0.2,
+                                 batch_size=batch_size,
+                                 epochs=epochs)
+        return self.model, history
 
 
 def optimal_batch_size(sequence_size: int) -> int:
