@@ -19,11 +19,19 @@ filepath = '/tmp/1000.csv'
 filepath = '/tmp/waimai_10k.csv'
 filepath = '/tmp/online_shopping_10_cats.csv'
 filepath = 'localdata/train_hemabot.csv'
-# filepath = '/tmp/twitter_disaster.csv'
+filepath = '/tmp/twitter_disaster.csv'
 df = pd.read_csv(filepath)
 df.dropna(inplace=True)
 # df['text'] = df.review
 # df['target'] = df.sentiment
+from premium.models.bert import bert_benchmark
+
+bc = bert_benchmark(df, bert_name='distilbert-base-uncased', epochs=2)
+xs = bc.predict(
+    ['what a disaster, lots of people were killed', 'oh, no, fire in the hole'])
+print(xs)
+exit(0)
+
 if 0:
     from premium.experimental.myfasttext import benchmark
     benchmark(df)

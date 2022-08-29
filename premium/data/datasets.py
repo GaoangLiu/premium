@@ -215,5 +215,14 @@ class Downloader(object):
         """
         fetch_data('online_shopping_10_cats.csv', 'classification')
 
+    def chn_senti(self):
+        """ 中文情感分析数据集. tag 用于区别 train(9000), test(2000), dev(20000)
+        tag,label,text
+        train,1,就是方便...
+        test,1,....
+        dev,1111
+        """
+        fetch_data('chn_senti_corp.csv', 'classification')
+
 
 downloader = Downloader()

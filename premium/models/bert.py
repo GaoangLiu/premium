@@ -9,11 +9,11 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
-from transformers import (AutoModel, AutoTokenizer, BertConfig, BertModel,
-                          BertTokenizer, BertTokenizerFast,
-                          DistilBertTokenizer, RobertaTokenizer,
-                          TFBertForSequenceClassification, TFBertModel,
-                          TFDistilBertForSequenceClassification,
+from transformers import (AutoModel, AutoTokenizer, AlbertTokenizer,
+                          AlbertModel, BertConfig, BertModel, BertTokenizer,
+                          BertTokenizerFast, DistilBertTokenizer,
+                          RobertaTokenizer, TFBertForSequenceClassification,
+                          TFBertModel, TFDistilBertForSequenceClassification,
                           TFDistilBertModel, TFRobertaModel, TFXLNetModel,
                           XLNetTokenizer)
 
@@ -35,7 +35,6 @@ class BertDataGenerator(tf.keras.utils.Sequence):
         (or just `[input_ids, attention_mask, `token_type_ids]`
          if `include_targets=False`)
     """
-
     def __init__(
         self,
         sentences,
@@ -100,7 +99,6 @@ class BertDataGenerator(tf.keras.utils.Sequence):
 
 
 class BertClassifier(object):
-
     def __init__(self,
                  max_sentence_len: int = 64,
                  layer_number: int = 3,
@@ -138,6 +136,7 @@ class BertClassifier(object):
 
     def get_tokenizer(self):
         TOKENIZER_MAP, bn = {
+            'albert-base-v2': AlbertTokenizer,
             'distilbert-base-uncased': DistilBertTokenizer,
             'bert-large-uncased': BertTokenizer,
             'bert-base-uncased': BertTokenizer,
@@ -155,6 +154,7 @@ class BertClassifier(object):
                                             output_hidden_states=True,
                                             output_attentions=True)
         MODEL_MAP, bn = {
+            'albert-base-v2': AlbertModel,
             'distilbert-base-uncased': TFDistilBertModel,
             'bert-base-uncased': TFBertModel,
             'bert-large-uncased': TFBertModel,
@@ -232,7 +232,7 @@ class BertClassifier(object):
         """ refer to the following link to refine your model
         https://towardsdatascience.com/hugging-face-transformers-fine-tuning-distilbert-for-binary-classification-tasks-490f1d192379
         """
-        if self.num_labels == 2:     # binary classification
+        if self.num_labels == 2:  # binary classification
             output = Dense(1, activation="sigmoid")(embedding)
             loss = "binary_crossentropy"
             metrics = ['accuracy']
@@ -253,8 +253,8 @@ class BertClassifier(object):
         cf.info("model created")
         return model
 
-    def auto_set_label_num(self, y: List[Union[str,
-                                               int]]) -> Tuple[Dict, List[int]]:
+    def auto_set_label_num(self,
+                           y: List[Union[str, int]]) -> Tuple[Dict, List[int]]:
         """ Automatically set the number of labels based on the labels.
         If it is binary classification, then new label is like [0, 1, 1, 0], 
         if it is multi-classification, then new label is like [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -262,12 +262,12 @@ class BertClassifier(object):
             - A map from old label to new label
             - A list of new label
         """
-        label_map = {}
-        for yi in y:
-            if yi not in label_map:
-                label_map[yi] = len(label_map)
-        new_y = np.array([label_map[yi] for yi in y])
-        self.num_labels = len(label_map)
+        unique_labels=list(set(y))
+        self.label_number = len(unique_labels)
+        if self.label_number == 2:
+            return {}, y
+        label_map={e:i for i,e in enumerate(unique_labels)}
+        new_y = np.array([label_map[e] for e in y])
         cf.info('Export {label, id} map to /tmp/label_map.json')
         cf.js.write(label_map, '/tmp/label_map.json')
         return label_map, new_y
@@ -332,13 +332,14 @@ class BertClassifier(object):
         plt.show()
 
 
-def bert_benchmark(df: pd.DataFrame,
+def baseline(df: pd.DataFrame,
                    epochs: int = 1,
                    bert_name: str = 'distilbert-base-uncased'):
     """ A Bert classifier wrapper for faster benchmark. 
     """
     assert 'text' in df.columns, 'text column not found'
     assert 'target' in df.columns, 'target column not found'
+    df = df.sample(frac=1, random_state=42)
     bc = BertClassifier(bert_name=bert_name)
     history = bc.fit(df['text'], df['target'], epochs=epochs)
     return bc
@@ -356,7 +357,6 @@ def map_sample_to_dict(input_ids, attention_masks, token_type_ids, label):
 
 
 class Dataset(object):
-
     def __init__(self, csv_file: str, ratio: float = -1):
         self.df = pd.read_csv(csv_file)
         if ratio > 0:
