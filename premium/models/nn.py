@@ -2,7 +2,6 @@
 import os
 import pickle
 import random
-from gc import callbacks
 from typing import Callable, Dict, List, Tuple, Union
 
 import codefast as cf
@@ -20,7 +19,6 @@ import premium as pm
 from premium.data.postprocess import get_binary_prediction
 from premium.data.preprocess import pad_sequences, tokenize
 from premium.models.model_config import KerasCallbacks
-from premium.utils import auto_set_label_num
 
 
 def to_chars(text: str):
@@ -140,11 +138,12 @@ class BinClassifier(object):
                                           weights=[embed_matrix],
                                           input_length=self.max_length,
                                           trainable=False)(sentence_input)
-        x = tf.keras.layers.LSTM(100, return_sequences=True)(x)
+        x = tf.keras.layers.Bidirectional(
+            tf.keras.layers.LSTM(128, return_sequences=True))(x)
         x = tf.keras.layers.Dropout(0.5)(x)
-        x = tf.keras.layers.LSTM(100)(x)
-        x = tf.keras.layers.Dropout(0.3)(x)
-        x = tf.keras.layers.Dense(100, activation='selu')(x)
+        # x = tf.keras.layers.LSTM(100)(x)
+        # x = tf.keras.layers.Dropout(0.5)(x)
+        x = tf.keras.layers.Dense(64, activation='selu')(x)
         output = tf.keras.layers.Dense(1, activation='sigmoid')(x)
         model = tf.keras.Model(sentence_input, output)
 
@@ -180,7 +179,7 @@ class BinClassifier(object):
             text_sequences, padding='pre', maxlen=self.max_length)
         return self.model.predict(text_sequences)
 
-    def benchmark(self,
+    def baseline(self,
                   df: pd.DataFrame,
                   batch_size: int = 32,
                   epochs: int = 3):
