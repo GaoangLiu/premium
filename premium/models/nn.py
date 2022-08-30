@@ -234,8 +234,8 @@ class MultiClassifier(BinClassifier):
                                           trainable=False)(sentence_input)
         x = tf.keras.layers.LSTM(100, return_sequences=True)(x)
         x = tf.keras.layers.Dropout(0.5)(x)
-        x = tf.keras.layers.LSTM(100)(x)
-        x = tf.keras.layers.Dropout(0.3)(x)
+        x = tf.keras.layers.LSTM(50)(x)
+        x = tf.keras.layers.Dropout(0.5)(x)
         x = tf.keras.layers.Dense(20, activation='selu')(x)
         output = tf.keras.layers.Dense(self.label_number,
                                        activation='softmax')(x)
@@ -258,7 +258,7 @@ class MultiClassifier(BinClassifier):
         cf.info('target to index mapping: {}'.format(self.target2idx))
         return tf.keras.utils.to_categorical(y_new)
 
-    def benchmark(self,
+    def baseline(self,
                   df: pd.DataFrame,
                   batch_size: int = 32,
                   epochs: int = 3,

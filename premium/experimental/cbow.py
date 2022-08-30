@@ -18,6 +18,9 @@ from premium.corpus import bookreader
 
 # build vocabulary of unique words
 class SimpleCBOW(object):
+    """ Continuous Bag of words implementation
+    refer: https://www.kdnuggets.com/2018/04/implementing-deep-learning-methods-feature-engineering-text-data-cbow.html
+    """
     def __init__(self,
                  words_list: List[List[str]],
                  embed_size: int = 100,

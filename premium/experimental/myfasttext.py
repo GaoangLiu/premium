@@ -25,7 +25,7 @@ def check_pretrained_vector(vector_path: str) -> bool:
         return True
 
 
-def benchmark(df: pd.DataFrame, dim: int = 200, pretrainedVectors: str = None, model_path: str = None, *args):
+def baseline(df: pd.DataFrame, dim: int = 200, pretrainedVectors: str = None, model_path: str = None, *args):
     assert 'text' in df.columns, 'text column not found'
     assert 'target' in df.columns, 'target column not found'
     df['target'] = '__label__' + df['target'].astype(str)

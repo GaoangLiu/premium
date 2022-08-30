@@ -9,8 +9,8 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
-from transformers import (AutoModel, AutoTokenizer, AlbertTokenizer,
-                          AlbertModel, BertConfig, BertModel, BertTokenizer,
+from transformers import (AlbertModel, AlbertTokenizer, AutoModel,
+                          AutoTokenizer, BertConfig, BertModel, BertTokenizer,
                           BertTokenizerFast, DistilBertTokenizer,
                           RobertaTokenizer, TFBertForSequenceClassification,
                           TFBertModel, TFDistilBertForSequenceClassification,
@@ -35,6 +35,7 @@ class BertDataGenerator(tf.keras.utils.Sequence):
         (or just `[input_ids, attention_mask, `token_type_ids]`
          if `include_targets=False`)
     """
+
     def __init__(
         self,
         sentences,
@@ -99,12 +100,13 @@ class BertDataGenerator(tf.keras.utils.Sequence):
 
 
 class BertClassifier(object):
+
     def __init__(self,
                  max_sentence_len: int = 64,
                  layer_number: int = 3,
                  bert_name: str = "distilbert-base-uncased",
                  do_lower_case: bool = True,
-                 num_labels: int = 2,
+                 label_number: int = 2,
                  loss: str = None,
                  cache_dir: str = "/data/cache",
                  weights_path: str = None) -> None:
@@ -114,14 +116,14 @@ class BertClassifier(object):
             layer_number: number of embedding layers
             bert_name: name of bert model
             do_lower_case: whether to lower case
-            num_labels: number of output classes
+            label_number: number of output classes
             weights_path: trained keras weight path, if exists, skip training
         """
         self.max_sentence_len = max_sentence_len
         self.bert_name = bert_name
         self.layer_number = layer_number
         self.do_lower_case = do_lower_case
-        self.num_labels = num_labels
+        self.label_number = label_number
         self.loss = loss
         self.cache_dir = cache_dir
         self.weights_path = weights_path
@@ -232,18 +234,18 @@ class BertClassifier(object):
         """ refer to the following link to refine your model
         https://towardsdatascience.com/hugging-face-transformers-fine-tuning-distilbert-for-binary-classification-tasks-490f1d192379
         """
-        if self.num_labels == 2:  # binary classification
+        if self.label_number == 2:     # binary classification
             output = Dense(1, activation="sigmoid")(embedding)
             loss = "binary_crossentropy"
             metrics = ['accuracy']
         else:
-            output = Dense(self.num_labels, activation="softmax")(cls_token)
+            output = Dense(self.label_number, activation="softmax")(cls_token)
             loss = "sparse_categorical_crossentropy"
             metrics = ['sparse_categorical_accuracy']
 
         if self.loss is not None:
             loss = self.loss
-        cf.info("setting output dim to {}".format(self.num_labels))
+        cf.info("setting output dim to {}".format(self.label_number))
         cf.info("setting loss to {}".format(loss))
 
         model = tf.keras.models.Model(inputs=[input_ids, attention_masks],
@@ -253,8 +255,8 @@ class BertClassifier(object):
         cf.info("model created")
         return model
 
-    def auto_set_label_num(self,
-                           y: List[Union[str, int]]) -> Tuple[Dict, List[int]]:
+    def auto_set_label_num(self, y: List[Union[str,
+                                               int]]) -> Tuple[Dict, List[int]]:
         """ Automatically set the number of labels based on the labels.
         If it is binary classification, then new label is like [0, 1, 1, 0], 
         if it is multi-classification, then new label is like [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -262,11 +264,12 @@ class BertClassifier(object):
             - A map from old label to new label
             - A list of new label
         """
-        unique_labels=list(set(y))
+        unique_labels = list(set(y))
+        cf.info('unique labels', unique_labels)
         self.label_number = len(unique_labels)
         if self.label_number == 2:
             return {}, y
-        label_map={e:i for i,e in enumerate(unique_labels)}
+        label_map = {e: i for i, e in enumerate(unique_labels)}
         new_y = np.array([label_map[e] for e in y])
         cf.info('Export {label, id} map to /tmp/label_map.json')
         cf.js.write(label_map, '/tmp/label_map.json')
@@ -292,7 +295,7 @@ class BertClassifier(object):
         ids, masks = self.batch_encoder(x)
         msg = {
             'label_number':
-            self.num_labels,
+            self.label_number,
             'label_map':
             label_map,
             'input_ids_shape':
@@ -333,15 +336,16 @@ class BertClassifier(object):
 
 
 def baseline(df: pd.DataFrame,
-                   epochs: int = 1,
-                   bert_name: str = 'distilbert-base-uncased'):
+             epochs: int = 1,
+             batch_size:int=32,
+             bert_name: str = 'distilbert-base-uncased'):
     """ A Bert classifier wrapper for faster benchmark. 
     """
     assert 'text' in df.columns, 'text column not found'
     assert 'target' in df.columns, 'target column not found'
     df = df.sample(frac=1, random_state=42)
     bc = BertClassifier(bert_name=bert_name)
-    history = bc.fit(df['text'], df['target'], epochs=epochs)
+    history = bc.fit(df['text'], df['target'], epochs=epochs,batch_size=batch_size)
     return bc
 
 
@@ -357,6 +361,7 @@ def map_sample_to_dict(input_ids, attention_masks, token_type_ids, label):
 
 
 class Dataset(object):
+
     def __init__(self, csv_file: str, ratio: float = -1):
         self.df = pd.read_csv(csv_file)
         if ratio > 0:
