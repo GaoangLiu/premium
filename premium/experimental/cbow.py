@@ -21,6 +21,7 @@ class SimpleCBOW(object):
     """ Continuous Bag of words implementation
     refer: https://www.kdnuggets.com/2018/04/implementing-deep-learning-methods-feature-engineering-text-data-cbow.html
     """
+
     def __init__(self,
                  words_list: List[List[str]],
                  embed_size: int = 100,
@@ -36,35 +37,34 @@ class SimpleCBOW(object):
         self.epoches = epoches
 
     def tokenize(self):
-        cnt = 1
+        self.vocab_size = 1
         for wl in self.words_list:
             lst = []
             for w in wl:
                 if w not in self.word2id:
-                    self.word2id[w] = cnt
-                    self.id2word[cnt] = w
-                    cnt += 1
+                    self.word2id[w] = self.vocab_size
+                    self.id2word[self.vocab_size] = w
+                    self.vocab_size += 1
                 lst.append(self.word2id[w])
             self.word_ids.append(lst)
-        self.vocab_size = len(self.word2id)
         cf.info("words list size: ", len(self.words_list))
         cf.info("Vocabulary size: ", self.vocab_size)
 
-    def generate_context_word_pairs(self, corpus: List[List[int]]):
+    def generate_context_word_pairs(self, word_id_list: List[List[int]]):
         """
-        corpus: list of list of word id(int)
+        word_id_list: list of list of word id(int)
         """
         context_length = self.window_size * 2
-        for words in corpus:
-            sentence_length = len(words)
-            for index, word in enumerate(words):
+        for word_ids in word_id_list:
+            sentence_length = len(word_ids)
+            for index, word in enumerate(word_ids):
                 context_words = []
                 label_word = []
                 start = index - self.window_size
                 end = index + self.window_size + 1
 
                 context_words.append([
-                    words[i] for i in range(start, end)
+                    word_ids[i] for i in range(start, end)
                     if 0 <= i < sentence_length and i != index
                 ])
                 label_word.append(word)
@@ -74,32 +74,32 @@ class SimpleCBOW(object):
                 yield (x, y)
 
     def build_model(self):
-        cbow = Sequential()
-        cbow.add(
+        model = Sequential()
+        model.add(
             Embedding(input_dim=self.vocab_size,
                       output_dim=self.embed_size,
                       input_length=self.window_size * 2))
-        cbow.add(
+        model.add(
             Lambda(lambda x: K.mean(x, axis=1),
                    output_shape=(self.embed_size, )))
-        cbow.add(Dense(self.vocab_size, activation="softmax"))
-        cbow.compile(loss="categorical_crossentropy", optimizer="rmsprop")
+        model.add(Dense(self.vocab_size, activation="softmax"))
+        model.compile(loss="categorical_crossentropy", optimizer="rmsprop")
         # view model summary
         cf.info('cbow model summary:')
-        print(cbow.summary())
-        return cbow
+        print(model.summary())
+        return model
 
     def train(self) -> Tuple[List, Sequential]:
         cbow = self.build_model()
         for epoch in range(self.epoches):
             loss = 0.0
-            for x, y in self.generate_context_word_pairs(corpus=self.word_ids):
+            for x, y in self.generate_context_word_pairs(self.word_ids):
                 loss += cbow.train_on_batch(x, y)
             cf.info("epoch {} loss {}".format(epoch, loss))
         cf.info('weights length:', len(cbow.get_weights()))
         weights = cbow.get_weights()[0]
         weights = weights[1:]
-        print(weights.shape)
+        print('weights shape:', weights.shape)
         print(
             pd.DataFrame(weights,
                          index=list(self.id2word.values())[1:]).head())
@@ -161,7 +161,8 @@ class SkipGrams(SimpleCBOW):
         for epoch in range(self.epoches):
             loss = 0
             for i, elem in enumerate(self.skip_grams):
-                if not elem[0]: continue
+                if not elem[0]:
+                    continue
                 pair_first_elem = np.array(list(zip(*elem[0]))[0],
                                            dtype='int32')
                 pair_second_elem = np.array(list(zip(*elem[0]))[1],
@@ -175,5 +176,3 @@ class SkipGrams(SimpleCBOW):
                         .format(i))
                 loss += model.train_on_batch(X, Y)
             cf.info('Epoch:', epoch, 'Loss:', loss)
-
-
