@@ -119,8 +119,8 @@ def baseline(df: pd.DataFrame,
     train_args = {
         'input': '/tmp/tt.train',
         'dim': dim,
-        # 'minn': 1,
-        # 'maxn': 2,
+        'minn': 1,
+        'maxn': 2,
         'thread': 12,
     }
 

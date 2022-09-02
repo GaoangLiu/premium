@@ -102,7 +102,7 @@ class BertDataGenerator(tf.keras.utils.Sequence):
 class BertClassifier(object):
 
     def __init__(self,
-                 max_sentence_len: int = 64,
+                 max_sentence_len: int = 200,
                  layer_number: int = 3,
                  bert_name: str = "distilbert-base-uncased",
                  do_lower_case: bool = True,

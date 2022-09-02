@@ -138,6 +138,7 @@ word2vec = WordToVector()
 
 
 class Downloader(object):
+
     def twitter_disaster(self):
         """ Twitter real disaster or not """
         cf.info('Downloading twitter disaster data')
@@ -223,6 +224,16 @@ class Downloader(object):
         dev,1111
         """
         fetch_data('chn_senti_corp.csv', 'classification')
+
+    def get(self, filename: str):
+        url_map = {
+            'tencent_cn_1M.txt':
+            'https://filedn.com/lCdtpv3siVybVynPcgXgnPm/corpus/pretrained/tencent_cn/tencent_cn_1M.txt',
+            'glove25d.gz':
+            'https://filedn.com/lCdtpv3siVybVynPcgXgnPm/corpus/pretrained/glove.twitter.27B.25d.txt.gz'
+        }
+        if filename in url_map:
+            cf.net.download(url_map[filename], '/tmp/' + filename)
 
 
 downloader = Downloader()
