@@ -88,20 +88,17 @@ def split_data(df: pd.DataFrame):
     cf.info(msg)
 
     fasttext_input = df[['target', 'text']].astype(str)
-    np.random.seed(0)
-    msk = np.random.rand(len(df)) < 0.8
-    fasttext_train = fasttext_input[msk]
-    fasttext_valid = fasttext_input[~msk]
-    cf.info('Train data: {}'.format(len(fasttext_train)))
-    cf.info('Valid data: {}'.format(len(fasttext_valid)))
+    size = int(fasttext_input.shape[0]*0.8)
+    fasttext_train = fasttext_input.sample(size, random_state=0)
+    fasttext_valid = fasttext_input.drop(fasttext_train.index)
+    cf.info('Train data size: {}'.format(len(fasttext_train)))
+    cf.info('Valid data size: {}'.format(len(fasttext_valid)))
 
     fasttext_train.to_csv("/tmp/tt.train",
-                          sep=" ",
                           quotechar=" ",
                           header=False,
                           index=False)
     fasttext_valid.to_csv("/tmp/tt.test",
-                          sep=" ",
                           quotechar=" ",
                           header=False,
                           index=False)
@@ -112,15 +109,19 @@ def baseline(df: pd.DataFrame,
              dim: int = 200,
              pretrainedVectors: str = None,
              model_path: str = None,
+             deprecate_split:bool=False,
              *args):
+    """ 
+    Inputs:
+        deprecate_split: bool, do not split data again if True. 
+    """
     model_path = '/tmp/pyfasttext.bin' if not model_path else model_path
-    _, _ = split_data(df)
+    if not deprecate_split:
+        _, _ = split_data(df)
     cf.info('start training')
     train_args = {
         'input': '/tmp/tt.train',
         'dim': dim,
-        'minn': 1,
-        'maxn': 2,
         'thread': 12,
     }
 
@@ -140,6 +141,7 @@ def autotune(df: pd.DataFrame,
              dim: int = 200,
              pretrainedVectors: str = None,
              model_path: str = None,
+             autotuneDuration:float=300,
              *args):
     # Find the best possible hyperparameters
     model_path = '/tmp/pyfasttext.bin' if not model_path else model_path
@@ -149,7 +151,8 @@ def autotune(df: pd.DataFrame,
         'input': '/tmp/tt.train',
         'dim': dim,
         'thread': 12,
-        'autotuneValidationFile': '/tmp/tt.test'
+        'autotuneValidationFile': '/tmp/tt.test',
+        'autoTuneDuration': autotuneDuration,
     }
 
     if pretrainedVectors:
@@ -159,6 +162,10 @@ def autotune(df: pd.DataFrame,
     model = fasttext.train_supervised(**train_args)
     model.save_model(model_path)
     return model
+
+
+def train_vector(df: pd.DataFrame, *kargs, **kwargs):
+    pass
 
 
 if __name__ == '__main__':

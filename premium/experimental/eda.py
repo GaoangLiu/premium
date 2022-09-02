@@ -58,6 +58,17 @@ def back_translation(text: str) -> str:
         return None
 
 
+def back_translation_file(input_file_path: str, merged_file_path: str):
+    """ Input a csv file, augument data by back translation and 
+    export merged result to another csv file
+    """
+    df_input = pd.read_csv(input_file_path)
+    x = df_input.copy()
+    x['text'] = x.text.apply(back_translation)
+    df_merged = pd.concat([df_input, x])
+    df_merged.to_csv(merged_file_path,index=False)
+
+
 if __name__ == '__main__':
     text_list = [
         '你如果是这样子的话，你七月份已经报了考试，你五月份六月份连着数学，然后看看七月份我们的考试。', '这么尴尬，四月27是吗。',
