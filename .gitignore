@@ -5,3 +5,4 @@ tt.test
 tt.train
 *.csv
 *.txt
+projects/*

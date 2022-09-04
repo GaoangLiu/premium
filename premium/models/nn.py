@@ -2,7 +2,7 @@
 import os
 import pickle
 import random
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import codefast as cf
 import numpy as np  # linear algebra
@@ -11,7 +11,7 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.layers import (GRU, LSTM, Bidirectional, Dense, Dropout,
+from tensorflow.keras.layers import (LSTM, Bidirectional, Dense, Dropout,
                                      Embedding, GlobalMaxPool1D, Input)
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
@@ -19,6 +19,8 @@ import premium as pm
 from premium.data.postprocess import get_binary_prediction
 from premium.data.preprocess import pad_sequences, tokenize
 from premium.models.model_config import KerasCallbacks
+from premium.preprocessing.text import TextTokenizer
+from premium.utils import auto_set_label_num
 
 
 def to_chars(text: str):
@@ -29,6 +31,112 @@ def to_chars(text: str):
     return tf.strings.unicode_split(text,
                                     input_encoding='UTF-8',
                                     errors="ignore")
+
+
+class TextClaissifier(object):
+    def __init__(self,
+                 data: str,
+                 batch_size: int = 32,
+                 epochs: int = 10,
+                 max_length: int = 200,
+                 embedding_size: int = 200,
+                 vocab_size: int = 30000,
+                 embedding_matrix: np.ndarray = None,
+                 num_classes: int = 2,
+                 test_size: float = 0.2,
+                 random_state: int = 42,
+                 verbose: int = 1,
+                 working_dir: str = '/tmp/',
+                 **kwargs):
+        self.data = data
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.max_length = max_length
+        self.embedding_size = embedding_size
+        self.vocab_size = vocab_size
+        self.embedding_matrix = embedding_matrix
+        self.num_classes = num_classes
+        self.test_size = test_size
+        self.random_state = random_state
+        self.verbose = verbose
+        self.working_dir = working_dir
+        self.kwargs = kwargs
+        self.embedding = tf.keras.layers.Embedding(vocab_size,
+                                                   embedding_size,
+                                                   input_length=100,
+                                                   weights=[embedding_matrix],
+                                                   trainable=False)
+        self.lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64))
+        self.dense = tf.keras.layers.Dense(num_classes, activation='softmax')
+
+    def build(self):
+        raise NotImplementedError
+
+    def _call(self, inputs, training=None, mask=None):
+        x = self.embedding(inputs)
+        x = self.lstm(x)
+        x = self.dense(x)
+        return x
+
+    @staticmethod
+    def load(working_dir: str):
+        """ Load pretrained model and tokenizer
+        """
+        args = {
+            'model_path': os.path.join(working_dir, 'model.h5'),
+            'tokenizer_path': os.path.join(working_dir, 'tokenizer.pkl'),
+            'index_map_path': os.path.join(working_dir, 'index_map.json'),
+            'label_map_path': os.path.join(working_dir, 'label_map.json')
+        }
+        for v in args.values():
+            assert os.path.exists(v), '{} does not exist'.format(v)
+        clf = TextClaissifier('')
+        clf.model = tf.keras.models.load_model(args['model_path'])
+        clf.toker = TextTokenizer.load(args['tokenizer_path'])
+        clf.label_map = cf.js(args['label_map_path'])
+        clf.index_map = cf.js(args['index_map_path'])
+        clf.index_map = {int(k): v for k, v in clf.index_map.items()}
+        event = {'msg': 'Load pretrained model and tokenizer', 'args': args}
+        cf.info(event)
+        clf.model.summary()
+        return clf
+
+    def call(self, x, y, epochs: int, batch_size: int, validation_data: Tuple,
+             callbacks: KerasCallbacks):
+        self.model.fit(x,
+                       y,
+                       epochs=epochs,
+                       batch_size=batch_size,
+                       validation_data=validation_data,
+                       callbacks=callbacks)
+        return self
+
+    def save_model(self, path: str = None):
+        path = path or os.path.join(self.working_dir, 'model.h5')
+        self.model.save(path)
+        return self
+
+    def predict(self, x):
+        return self.model.predict(x)
+
+    def to_catorical(self, y: List[Any]) -> np.ndarray:
+        """ Convert the labels to categorical, and keep two mapping dicts
+        label_map: {label: index}
+        index_map: {index: label}
+        """
+        self.label_map, ys = auto_set_label_num(y)
+        self.index_map = {v: k for k, v in self.label_map.items()}
+        cf.js.write(self.label_map,
+                    os.path.join(self.working_dir, 'label_map.json'))
+        cf.js.write(self.index_map,
+                    os.path.join(self.working_dir, 'index_map.json'))
+        event = {
+            'label_map': self.label_map,
+            'index_map': self.index_map,
+            'msg': 'label map exported to {}'.format(self.working_dir)
+        }
+        cf.info(event)
+        return tf.keras.utils.to_categorical(ys, num_classes=self.num_classes)
 
 
 class BinClassifier(object):
@@ -180,9 +288,9 @@ class BinClassifier(object):
         return self.model.predict(text_sequences)
 
     def baseline(self,
-                  df: pd.DataFrame,
-                  batch_size: int = 32,
-                  epochs: int = 3):
+                 df: pd.DataFrame,
+                 batch_size: int = 32,
+                 epochs: int = 3):
         """Do a quick benchmark on given dataset in format
         target, text
         """
@@ -258,11 +366,11 @@ class MultiClassifier(BinClassifier):
         return tf.keras.utils.to_categorical(y_new)
 
     def baseline(self,
-                  df: pd.DataFrame,
-                  batch_size: int = 32,
-                  epochs: int = 3,
-                  save_model=False,
-                  model_name='model.h5'):
+                 df: pd.DataFrame,
+                 batch_size: int = 32,
+                 epochs: int = 3,
+                 save_model=False,
+                 model_name='model.h5'):
         """Do a quick benchmark on given dataset in format
         target, text
         """

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="premium",
-    version="0.0.9",
+    version="0.0.9dev1",
     author="sK9xTFBq0H",
     author_email="GaoangLau@gmail.com",
     description="Python AI toolkits",
