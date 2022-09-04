@@ -1,7 +1,9 @@
 import codefast as cf
 import hashlib
-from typing import List,Union,Dict,Tuple
+from typing import List, Union, Dict, Tuple
 import numpy as np
+import os
+
 
 def md5sum(fname):
     hash_md5 = hashlib.md5()
@@ -9,10 +11,10 @@ def md5sum(fname):
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
-    
-    
-def auto_set_label_num(y: List[Union[str,
-                                     int]], working_dir:str='/tmp/') -> Tuple[Dict, List[int]]:
+
+
+def auto_set_label_num(y: List[Union[str, int]],
+                       working_dir: str = '/tmp/') -> Tuple[Dict, List[int]]:
     """ Automatically set the number of labels based on the labels.
     If it is binary classification, then new label is like [0, 1, 1, 0], 
     if it is multi-classification, then new label is like [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -23,9 +25,9 @@ def auto_set_label_num(y: List[Union[str,
     unique_labels = set(y)
     label_map = dict(zip(unique_labels, range(len(unique_labels))))
     new_y = np.array([label_map[yi] for yi in y])
-    cf.info('Export [label, id] map to {}/label_map.json'.format(working_dir))
-    cf.js.write(label_map, '{}/label_map.json'.format(working_dir))
+    cf.info('Export [label, id] map to {}'.format(
+        os.path.join(working_dir, 'label_map.json')))
+    cf.js.write(label_map,
+                '{}'.format(os.path.join(working_dir, 'label_map.json')))
     cf.info(label_map)
     return label_map, new_y
-
-    
