@@ -2,21 +2,40 @@
 import pickle
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-import codefast as cf
 import tensorflow as tf
+from codefast.decorators.log import time_it
+from tensorflow import keras
 
-def time_decorator(func):
-    def wrapper(*args, **kwargs):
-        import time
-        start = time.time()
-        cf.info('Calling function: {}'.format(func.__name__))
-        res = func(*args, **kwargs)
-        end = time.time()
-        cf.info('Function {} took {:<.4} seconds'.format(
-            func.__name__, end - start))
-        return res
+class TextVectorizer(tf.keras.layers.TextVectorization):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    return wrapper
+    def adapt(self, data):
+        super().adapt(data)
+        self.vocab = self.get_vocabulary()
+        self.word_index = dict(zip(self.vocab, range(len(self.vocab))))
+    
+    @time_it
+    def dump(self, path: str):
+        self.pickle(path)
+
+    @time_it
+    def pickle(self, path: str):
+        with open(path, 'wb') as f:
+            pickle.dump(
+                {
+                    'config': self.get_config(),
+                    'weights': self.get_weights(),
+                }, f)
+
+    @classmethod
+    @time_it
+    def load(cls, path: str):
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+        obj = cls(**data['config'])
+        obj.set_weights(data['weights'])
+        return obj
 
 
 class TextTokenizer(tf.keras.preprocessing.text.Tokenizer):
@@ -57,7 +76,7 @@ class TextTokenizer(tf.keras.preprocessing.text.Tokenizer):
         """alias of tok"""
         return self.tok(texts)
 
-    @time_decorator
+    @time_it
     def fit_transform(self, texts: List[str]) -> List[List[int]]:
         """ Fit the tokenizer on the texts 
         """
