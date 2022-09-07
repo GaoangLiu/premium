@@ -5,12 +5,6 @@ from itertools import product
 import codefast as cf
 
 
-class ner:
-    def __init__(self):
-        ...
-
-    def extract_company(self, text: str) -> list:
-        ...
 
 
 '''TODO 

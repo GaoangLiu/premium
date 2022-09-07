@@ -66,7 +66,7 @@ def back_translation_file(input_file_path: str, merged_file_path: str):
     x = df_input.copy()
     x['text'] = x.text.apply(back_translation)
     df_merged = pd.concat([df_input, x])
-    df_merged.to_csv(merged_file_path,index=False)
+    df_merged.to_csv(merged_file_path, index=False)
 
 
 if __name__ == '__main__':
