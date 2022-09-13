@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from torch.utils.data import TensorDataset, DataLoader
 import os
 import random
 import re
@@ -16,7 +15,7 @@ import torch
 import torch.nn as nn
 from rich import print
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 
 class MnistData(Dataset):
