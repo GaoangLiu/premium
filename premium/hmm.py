@@ -6,9 +6,11 @@ from typing import List, Tuple
 import codefast as cf
 
 
-class HMM:
+class HMM(object):
+    """ HMM Chinese word segmentation
+    """
     def __init__(self):
-        cur_dir = io.dirname()
+        cur_dir = cf.io.pwd()
         self.TRAIN_CORPUS = f'{cur_dir}/data/msr_training.utf8'
         self.emit_pickle = f'{cur_dir}/data/emit_p.pickle'
         self.trans_pickle = f'{cur_dir}/data/trans.pickle'
@@ -22,7 +24,7 @@ class HMM:
         if self.emission and self.transition:     # to avoid I/O
             return self.emission, self.transition
 
-        if io.exists(self.emit_pickle) and io.exists(self.trans_pickle):
+        if cf.io.exists(self.emit_pickle) and cf.io.exists(self.trans_pickle):
             emit_p = pickle.load(open(self.emit_pickle, 'rb'))
             trans = pickle.load(open(self.trans_pickle, 'rb'))
             self.emission, self.transition = emit_p, trans
@@ -159,8 +161,8 @@ class HMM:
 
 
 if __name__ == '__main__':
-    cur_dir = io.dirname()
-    io.rm(f'{cur_dir}/data/emit_p.pickle')
+    cur_dir = cf.io.dirname()
+    cf.io.rm(f'{cur_dir}/data/emit_p.pickle')
     texts = [
         '看了你的信，我被你信中流露出的凄苦、迷惘以及热切求助的情绪触动了。', '这是一种基于统计的分词方案', '这位先生您手机欠费了',
         '还有没有更快的方法', '买水果然后来世博园最后去世博会', '欢迎新老师生前来就餐', '北京大学生前来应聘', '今天天气不错哦',
