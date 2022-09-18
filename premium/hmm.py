@@ -21,7 +21,7 @@ class HMM(object):
 
     def train(self) -> Tuple[dict, list]:
         ''' train HMM segment model from corpus '''
-        if self.emission and self.transition:     # to avoid I/O
+        if self.emission and self.transition:     # to speedup I/O
             return self.emission, self.transition
 
         if cf.io.exists(self.emit_pickle) and cf.io.exists(self.trans_pickle):
@@ -32,7 +32,7 @@ class HMM(object):
 
         emit_p = defaultdict(int)
         ci = defaultdict(int)
-        # b0 m1 e2 s3
+        # b->0 m->1 e->2 s->3
         trans = [[0] * 4 for _ in range(4)]
 
         def update_trans(i, j):
@@ -67,7 +67,7 @@ class HMM(object):
                                     ci['M'] += 1
                                     emit_p[(c, 'M')] += 1
                                     pre_symbol = update_trans(pre_symbol, 1)
-        cf.info('count pairs complete.')
+        cf.info('counting pairs completed.')
 
         for i, t in enumerate(trans):     # normalization
             trans[i] = [
@@ -82,7 +82,8 @@ class HMM(object):
 
         with open(self.trans_pickle, 'wb') as f:
             pickle.dump(trans, f)
-
+        
+        cf.info('training completed.')
         return emit_p, trans
 
     def calculate_trans(self, emit_p: dict, ci: dict, obs: str,
