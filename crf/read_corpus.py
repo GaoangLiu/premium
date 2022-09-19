@@ -1,26 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import codefast as cf
 
 from utils.exceptions import FileFormatError
 
 
-def read_conll_corpus(filename):
+def read_conll_corpus(filename: str):
     """
     Read a corpus file with a format used in CoNLL.
+    `data` demo:
+    [
+        ([['Friday', 'NNP'], ["'s", 'POS'], ['Market', 'NNP'], ['Activity', 'NN']], ['B-NP', 'B-NP', 'I-NP', 'I-NP'])
+        ...
+    ]
     """
-    data = list()
-    data_string_list = list(open(filename))
-
     element_size = 0
-    X = list()
-    Y = list()
-    for data_string in data_string_list:
-        words = data_string.strip().split()
+    data, X, Y = [], [], []
+    for s in cf.io.read(filename):
+        words = s.strip().split()
         if len(words) == 0:
             data.append((X, Y))
-            X = list()
-            Y = list()
+            X, Y = [], []
         else:
             if element_size == 0:
                 element_size = len(words)
@@ -32,3 +33,10 @@ def read_conll_corpus(filename):
         data.append((X, Y))
 
     return data
+
+
+fn = 'data/chunking_small/small_train.data'
+data = read_conll_corpus(fn)
+for d in data:
+    if len(d[0]) < 5:
+        print(d)

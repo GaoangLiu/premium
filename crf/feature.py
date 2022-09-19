@@ -49,7 +49,7 @@ def default_feature_func(_, X, t):
     return features
 
 
-class FeatureSet():
+class FeatureSet(object):
     feature_dic = dict()
     observation_set = set()
     empirical_counts = Counter()
@@ -74,8 +74,8 @@ class FeatureSet():
         # Constructs a feature set, and counts empirical counts.
         for X, Y in data:
             prev_y = STARTING_LABEL_INDEX
-            for t in range(len(X)):
-                # Gets a label id
+            for t in range(len(X)): 
+                # Gets a label id, t: time
                 try:
                     y = self.label_dic[Y[t]]
                 except KeyError:

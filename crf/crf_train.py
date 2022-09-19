@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+
 from crf import LinearChainCRF
 
 if __name__ == '__main__':

@@ -44,6 +44,7 @@ def _callback(params):
     TOTAL_SUB_ITERATIONS += SUB_ITERATION_NUM
     SUB_ITERATION_NUM = 0
 
+
 def _generate_potential_table(params, num_labels, feature_set, X, inference=True):
     """
     Generates a potential table using given observations.
@@ -71,8 +72,8 @@ def _generate_potential_table(params, num_labels, feature_set, X, inference=True
         if t == 0:
             table[STARTING_LABEL_INDEX+1:] = 0
         else:
-            table[:,STARTING_LABEL_INDEX] = 0
-            table[STARTING_LABEL_INDEX,:] = 0
+            table[:, STARTING_LABEL_INDEX] = 0
+            table[STARTING_LABEL_INDEX, :] = 0
         tables.append(table)
 
     return tables
@@ -91,7 +92,7 @@ def _forward_backward(num_labels, time_length, potential_table):
     t = 0
     for label_id in range(num_labels):
         alpha[t, label_id] = potential_table[t][STARTING_LABEL_INDEX, label_id]
-    #alpha[0, :] = potential_table[0][STARTING_LABEL_INDEX, :]  # slow
+    # alpha[0, :] = potential_table[0][STARTING_LABEL_INDEX, :]  # slow
     t = 1
     while t < time_length:
         scaling_time = None
@@ -99,10 +100,11 @@ def _forward_backward(num_labels, time_length, potential_table):
         overflow_occured = False
         label_id = 1
         while label_id < num_labels:
-            alpha[t, label_id] = np.dot(alpha[t-1,:], potential_table[t][:,label_id])
+            alpha[t, label_id] = np.dot(
+                alpha[t-1, :], potential_table[t][:, label_id])
             if alpha[t, label_id] > SCALING_THRESHOLD:
                 if overflow_occured:
-                    print('******** Consecutive overflow ********')
+                    cf.info('******** Consecutive overflow ********')
                     raise BaseException()
                 overflow_occured = True
                 scaling_time = t - 1
@@ -121,10 +123,11 @@ def _forward_backward(num_labels, time_length, potential_table):
     t = time_length - 1
     for label_id in range(num_labels):
         beta[t, label_id] = 1.0
-    #beta[time_length - 1, :] = 1.0     # slow
+    # beta[time_length - 1, :] = 1.0     # slow
     for t in range(time_length-2, -1, -1):
         for label_id in range(1, num_labels):
-            beta[t, label_id] = np.dot(beta[t+1,:], potential_table[t+1][label_id,:])
+            beta[t, label_id] = np.dot(
+                beta[t+1, :], potential_table[t+1][label_id, :])
         if t in scaling_dic.keys():
             beta[t] /= scaling_dic[t]
 
@@ -156,9 +159,11 @@ def _log_likelihood(params, *args):
     for X_features in training_feature_data:
         potential_table = _generate_potential_table(params, len(label_dic), feature_set,
                                                     X_features, inference=False)
-        alpha, beta, Z, scaling_dic = _forward_backward(len(label_dic), len(X_features), potential_table)
+        alpha, beta, Z, scaling_dic = _forward_backward(
+            len(label_dic), len(X_features), potential_table)
         total_logZ += log(Z) + \
-                      sum(log(scaling_coefficient) for _, scaling_coefficient in scaling_dic.items())
+            sum(log(scaling_coefficient)
+                for _, scaling_coefficient in scaling_dic.items())
         for t in range(len(X_features)):
             potential = potential_table[t]
             for (prev_y, y), feature_ids in X_features[t]:
@@ -172,17 +177,19 @@ def _log_likelihood(params, *args):
                     if prev_y is not STARTING_LABEL_INDEX:
                         continue
                     else:
-                        prob = (potential[STARTING_LABEL_INDEX, y] * beta[t, y])/Z
+                        prob = (
+                            potential[STARTING_LABEL_INDEX, y] * beta[t, y])/Z
                 else:
                     if prev_y is STARTING_LABEL_INDEX or y is STARTING_LABEL_INDEX:
                         continue
                     else:
-                        prob = (alpha[t-1, prev_y] * potential[prev_y, y] * beta[t, y]) / Z
+                        prob = (alpha[t-1, prev_y] *
+                                potential[prev_y, y] * beta[t, y]) / Z
                 for fid in feature_ids:
                     expected_counts[fid] += prob
 
     likelihood = np.dot(empirical_counts, params) - total_logZ - \
-                 np.sum(np.dot(params,params))/(squared_sigma*2)
+        np.sum(np.dot(params, params))/(squared_sigma*2)
 
     gradients = empirical_counts - expected_counts - params/squared_sigma
     global GRADIENT
@@ -192,7 +199,8 @@ def _log_likelihood(params, *args):
     sub_iteration_str = '    '
     if SUB_ITERATION_NUM > 0:
         sub_iteration_str = '(' + '{0:02d}'.format(SUB_ITERATION_NUM) + ')'
-    print('  ', '{0:03d}'.format(ITERATION_NUM), sub_iteration_str, ':', likelihood * -1)
+    cf.info('  ', '{0:03d}'.format(ITERATION_NUM),
+            sub_iteration_str, ':', likelihood * -1)
 
     SUB_ITERATION_NUM += 1
 
@@ -243,47 +251,48 @@ class LinearChainCRF():
             large scale bound constrained optimization (2011), ACM Transactions on Mathematical Software, 38, 1.
         """
         training_feature_data = self._get_training_feature_data()
-        print('* Squared sigma:', self.squared_sigma)
-        print('* Start L-BGFS')
-        print('   ========================')
-        print('   iter(sit): likelihood')
-        print('   ------------------------')
+        cf.info('* Squared sigma:', self.squared_sigma)
+        cf.info('* Start L-BGFS')
+        cf.info('   ========================')
+        cf.info('   iter(sit): likelihood')
+        cf.info('   ------------------------')
         self.params, log_likelihood, information = \
-                fmin_l_bfgs_b(func=_log_likelihood, fprime=_gradient,
-                              x0=np.zeros(len(self.feature_set)),
-                              args=(self.training_data, self.feature_set, training_feature_data,
-                                    self.feature_set.get_empirical_counts(),
-                                    self.label_dic, self.squared_sigma),
-                              callback=_callback)
-        print('   ========================')
-        print('   (iter: iteration, sit: sub iteration)')
-        print('* Training has been finished with %d iterations' % information['nit'])
+            fmin_l_bfgs_b(func=_log_likelihood, fprime=_gradient,
+                          x0=np.zeros(len(self.feature_set)),
+                          args=(self.training_data, self.feature_set, training_feature_data,
+                                self.feature_set.get_empirical_counts(),
+                                self.label_dic, self.squared_sigma),
+                          callback=_callback)
+        cf.info('   ========================')
+        cf.info('   (iter: iteration, sit: sub iteration)')
+        cf.info('* Training has been finished with %d iterations' %
+                information['nit'])
 
         if information['warnflag'] != 0:
-            print('* Warning (code: %d)' % information['warnflag'])
+            cf.info('* Warning (code: %d)' % information['warnflag'])
             if 'task' in information.keys():
-                print('* Reason: %s' % (information['task']))
-        print('* Likelihood: %s' % str(log_likelihood))
+                cf.info('* Reason: %s' % (information['task']))
+        cf.info('* Likelihood: %s' % str(log_likelihood))
 
-    def train(self, corpus_filename, model_filename):
+    def train(self, corpus_filename: str, model_filename: str):
         """
         Estimates parameters using conjugate gradient methods.(L-BFGS-B used)
         """
         start_time = time.time()
-        print('[%s] Start training' % datetime.datetime.now())
+        cf.info('Start training')
 
         # Read the training corpus
-        print("* Reading training data ... ", end="")
+        cf.info("Reading training data ... ", end="")
         self.training_data = self._read_corpus(corpus_filename)
-        print("Done")
+        cf.info("Done")
 
         # Generate feature set from the corpus
         self.feature_set = FeatureSet()
         self.feature_set.scan(self.training_data)
         self.label_dic, self.label_array = self.feature_set.get_labels()
         self.num_labels = len(self.label_array)
-        print("* Number of labels: %d" % (self.num_labels-1))
-        print("* Number of features: %d" % len(self.feature_set))
+        cf.info("Number of labels: {}".format(self.num_labels-1))
+        cf.info("Number of features: {}".format(self.feature_set))
 
         # Estimates parameters to maximize log-likelihood of the corpus.
         self._estimate_parameters()
@@ -291,8 +300,8 @@ class LinearChainCRF():
         self.save_model(model_filename)
 
         elapsed_time = time.time() - start_time
-        print('* Elapsed time: %f' % elapsed_time)
-        print('* [%s] Training done' % datetime.datetime.now())
+        cf.info('Elapsed time: {}'.format(elapsed_time))
+        cf.info('Training done')
 
     def test(self, test_corpus_filename):
         if self.params is None:
@@ -309,9 +318,9 @@ class LinearChainCRF():
                 if Y[t] == Yprime[t]:
                     correct_count += 1
 
-        print('Correct: %d' % correct_count)
-        print('Total: %d' % total_count)
-        print('Performance: %f' % (correct_count/total_count))
+        cf.info('Correct: %d' % correct_count)
+        cf.info('Total: %d' % total_count)
+        cf.info('Performance: %f' % (correct_count/total_count))
 
     def print_test_result(self, test_corpus_filename):
         test_data = self._read_corpus(test_corpus_filename)
@@ -319,8 +328,8 @@ class LinearChainCRF():
         for X, Y in test_data:
             Yprime = self.inference(X)
             for t in range(len(X)):
-                print('%s\t%s\t%s' % ('\t'.join(X[t]), Y[t], Yprime[t]))
-            print()
+                cf.info('%s\t%s\t%s' % ('\t'.join(X[t]), Y[t], Yprime[t]))
+            cf.info()
 
     def inference(self, X):
         """
@@ -347,7 +356,8 @@ class LinearChainCRF():
                 max_value = -float('inf')
                 max_label_id = None
                 for prev_label_id in range(1, self.num_labels):
-                    value = max_table[t-1, prev_label_id] * potential_table[t][prev_label_id, label_id]
+                    value = max_table[t-1, prev_label_id] * \
+                        potential_table[t][prev_label_id, label_id]
                     if value > max_value:
                         max_value = value
                         max_label_id = prev_label_id
@@ -368,10 +378,12 @@ class LinearChainCRF():
                  "labels": self.feature_set.label_array,
                  "params": list(self.params)}
         f = open(model_filename, 'w')
-        json.dump(model, f, ensure_ascii=False, indent=2, separators=(',', ':'))
+        json.dump(model, f, ensure_ascii=False,
+                  indent=2, separators=(',', ':'))
         f.close()
         import os
-        print('* Trained CRF Model has been saved at "%s/%s"' % (os.getcwd(), model_filename))
+        cf.info('* Trained CRF Model has been saved at "%s/%s"' %
+                (os.getcwd(), model_filename))
 
     def load(self, model_filename):
         f = open(model_filename)
@@ -379,21 +391,22 @@ class LinearChainCRF():
         f.close()
 
         self.feature_set = FeatureSet()
-        self.feature_set.load(model['feature_dic'], model['num_features'], model['labels'])
+        self.feature_set.load(model['feature_dic'],
+                              model['num_features'], model['labels'])
         self.label_dic, self.label_array = self.feature_set.get_labels()
         self.num_labels = len(self.label_array)
         self.params = np.asarray(model['params'])
 
-        print('CRF model loaded')
+        cf.info('CRF model loaded')
 
 
 # For testing
-#crf = LinearChainCRF()
+crf = LinearChainCRF()
 
-#crf.train('data/chunking/simple_train.data', 'data/chunking/model_5.json')
-#crf.load('data/chunking/model_5.json')
-#crf.test('data/chunking/simple_test.data')
+crf.train('data/chunking_small/small_train.data', '/tmp/crf_model.json')
+# crf.load('data/chunking/model_5.json')
+# crf.test('data/chunking/simple_test.data')
 
 #crf.train('data/chunking_2/train.txt', 'data/chunking_2/model_4.json')
-#crf.load('data/chunking_2/model_4.json')
-#crf.test('data/chunking_2/test.txt')
+# crf.load('data/chunking_2/model_4.json')
+# crf.test('data/chunking_2/test.txt')
