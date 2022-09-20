@@ -12,4 +12,8 @@ if __name__ == '__main__':
 
     crf = LinearChainCRF()
     crf.load(args.modelfile)
-    crf.test(args.datafile)
+    # crf.test(args.datafile)
+    for _ in range(1000):
+        resp = crf.inference('明天晚上吃什么，鱼和熊掌不可兼得')
+    print(resp)
+    

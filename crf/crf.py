@@ -251,11 +251,10 @@ class LinearChainCRF():
             large scale bound constrained optimization (2011), ACM Transactions on Mathematical Software, 38, 1.
         """
         training_feature_data = self._get_training_feature_data()
-        cf.info('* Squared sigma:', self.squared_sigma)
-        cf.info('* Start L-BGFS')
-        cf.info('   ========================')
-        cf.info('   iter(sit): likelihood')
-        cf.info('   ------------------------')
+        cf.info('Squared sigma:', self.squared_sigma)
+        cf.info('Start L-BGFS')
+        cf.info('iter(sit): likelihood')
+        cf.info('------------------------')
         self.params, log_likelihood, information = \
             fmin_l_bfgs_b(func=_log_likelihood, fprime=_gradient,
                           x0=np.zeros(len(self.feature_set)),
@@ -263,15 +262,14 @@ class LinearChainCRF():
                                 self.feature_set.get_empirical_counts(),
                                 self.label_dic, self.squared_sigma),
                           callback=_callback)
-        cf.info('   ========================')
-        cf.info('   (iter: iteration, sit: sub iteration)')
-        cf.info('* Training has been finished with %d iterations' %
+        cf.info('(iter: iteration, sit: sub iteration)')
+        cf.info('Training has been finished with %d iterations' %
                 information['nit'])
 
         if information['warnflag'] != 0:
-            cf.info('* Warning (code: %d)' % information['warnflag'])
+            cf.info('Warning (code: %d)' % information['warnflag'])
             if 'task' in information.keys():
-                cf.info('* Reason: %s' % (information['task']))
+                cf.info('Reason: %s' % (information['task']))
         cf.info('* Likelihood: %s' % str(log_likelihood))
 
     def train(self, corpus_filename: str, model_filename: str):
@@ -282,12 +280,13 @@ class LinearChainCRF():
         cf.info('Start training')
 
         # Read the training corpus
-        cf.info("Reading training data ... ", end="")
+        cf.info('Reading training data ... ')
         self.training_data = self._read_corpus(corpus_filename)
         cf.info("Done")
 
         # Generate feature set from the corpus
         self.feature_set = FeatureSet()
+        print(self.feature_set.label_dic)
         self.feature_set.scan(self.training_data)
         self.label_dic, self.label_array = self.feature_set.get_labels()
         self.num_labels = len(self.label_array)
@@ -313,6 +312,11 @@ class LinearChainCRF():
         correct_count = 0
         for X, Y in test_data:
             Yprime = self.inference(X)
+            print(X)
+            print(Yprime)
+            print('-'*88)
+            import random 
+            if random.randint(1,100)>90: exit(0)
             for t in range(len(Y)):
                 total_count += 1
                 if Y[t] == Yprime[t]:
@@ -401,9 +405,9 @@ class LinearChainCRF():
 
 
 # For testing
-crf = LinearChainCRF()
-
-crf.train('data/chunking_small/small_train.data', '/tmp/crf_model.json')
+# crf = LinearChainCRF()
+#
+# crf.train('data/chunking_small/small_train.data', '/tmp/crf_model.json')
 # crf.load('data/chunking/model_5.json')
 # crf.test('data/chunking/simple_test.data')
 

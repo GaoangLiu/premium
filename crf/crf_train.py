@@ -5,6 +5,7 @@ import argparse
 from crf import LinearChainCRF
 
 if __name__ == '__main__':
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("datafile", help="data file for training input")
     parser.add_argument("modelfile", help="the model file name. (output)")
@@ -12,4 +13,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     crf = LinearChainCRF()
+    # crf.train('data/chunking_small/small_train.data', 'model.json')
     crf.train(args.datafile, args.modelfile)

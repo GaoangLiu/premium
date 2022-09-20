@@ -4,13 +4,13 @@
 from collections import Counter
 
 import numpy as np
-
+from typing import List, Tuple, Callable
 
 STARTING_LABEL = '*'        # Label of t=-1
 STARTING_LABEL_INDEX = 0
 
 
-def default_feature_func(_, X, t):
+def default_feature_func(X, t):
     """
     Returns a list of feature strings.
     (Default feature function)
@@ -20,52 +20,55 @@ def default_feature_func(_, X, t):
     """
     length = len(X)
 
-    features = list()
-    features.append('U[0]:%s' % X[t][0])
-    features.append('POS_U[0]:%s' % X[t][1])
+    features = []
+    if not X[t]: return features
+    features.append('U[0]:%s' % X[t][0])  # U stands for unigram
+    # features.append('POS_U[0]:%s' % X[t][1])
     if t < length-1:
         features.append('U[+1]:%s' % (X[t+1][0]))
         features.append('B[0]:%s %s' % (X[t][0], X[t+1][0]))
-        features.append('POS_U[1]:%s' % X[t+1][1])
-        features.append('POS_B[0]:%s %s' % (X[t][1], X[t+1][1]))
+        # features.append('POS_U[1]:%s' % X[t+1][1])
+        # features.append('POS_B[0]:%s %s' % (X[t][1], X[t+1][1]))
         if t < length-2:
             features.append('U[+2]:%s' % (X[t+2][0]))
-            features.append('POS_U[+2]:%s' % (X[t+2][1]))
-            features.append('POS_B[+1]:%s %s' % (X[t+1][1], X[t+2][1]))
-            features.append('POS_T[0]:%s %s %s' % (X[t][1], X[t+1][1], X[t+2][1]))
+            # features.append('POS_U[+2]:%s' % (X[t+2][1]))
+            # features.append('POS_B[+1]:%s %s' % (X[t+1][1], X[t+2][1]))
+            # features.append('POS_T[0]:%s %s %s' %
+            #                 (X[t][1], X[t+1][1], X[t+2][1]))
     if t > 0:
         features.append('U[-1]:%s' % (X[t-1][0]))
         features.append('B[-1]:%s %s' % (X[t-1][0], X[t][0]))
-        features.append('POS_U[-1]:%s' % (X[t-1][1]))
-        features.append('POS_B[-1]:%s %s' % (X[t-1][1], X[t][1]))
-        if t < length-1:
-            features.append('POS_T[-1]:%s %s %s' % (X[t-1][1], X[t][1], X[t+1][1]))
+        # features.append('POS_U[-1]:%s' % (X[t-1][1]))
+        # features.append('POS_B[-1]:%s %s' % (X[t-1][1], X[t][1]))
+        # if t < length-1:
+        #     features.append('POS_T[-1]:%s %s %s' %
+        #                     (X[t-1][1], X[t][1], X[t+1][1]))
         if t > 1:
             features.append('U[-2]:%s' % (X[t-2][0]))
-            features.append('POS_U[-2]:%s' % (X[t-2][1]))
-            features.append('POS_B[-2]:%s %s' % (X[t-2][1], X[t-1][1]))
-            features.append('POS_T[-2]:%s %s %s' % (X[t-2][1], X[t-1][1], X[t][1]))
-
+        #     features.append('POS_U[-2]:%s' % (X[t-2][1]))
+        #     features.append('POS_B[-2]:%s %s' % (X[t-2][1], X[t-1][1]))
+        #     features.append('POS_T[-2]:%s %s %s' %
+        #                     (X[t-2][1], X[t-1][1], X[t][1]))
     return features
 
 
 class FeatureSet(object):
-    feature_dic = dict()
-    observation_set = set()
-    empirical_counts = Counter()
-    num_features = 0
+    def __init__(self, feature_func: Callable = None) -> None:
+        self.feature_dic = dict()
+        self.observation_set = set()
+        self.empirical_counts = Counter()
+        self.num_features = 0
 
-    label_dic = {STARTING_LABEL: STARTING_LABEL_INDEX}
-    label_array = [STARTING_LABEL]
+        # which is {'*':0}
+        self.label_dic = {STARTING_LABEL: STARTING_LABEL_INDEX}
+        self.label_array = [STARTING_LABEL]
+        self.feature_func = default_feature_func
 
-    feature_func = default_feature_func
-
-    def __init__(self, feature_func=None):
         # Sets a custom feature function.
         if feature_func is not None:
             self.feature_func = feature_func
 
-    def scan(self, data):
+    def scan(self, data: List[Tuple]) -> None:
         """
         Constructs a feature set, a label set,
             and a counter of empirical counts of each feature from the input data.
@@ -74,14 +77,14 @@ class FeatureSet(object):
         # Constructs a feature set, and counts empirical counts.
         for X, Y in data:
             prev_y = STARTING_LABEL_INDEX
-            for t in range(len(X)): 
+            for t, yt in enumerate(Y):
                 # Gets a label id, t: time
                 try:
-                    y = self.label_dic[Y[t]]
+                    y = self.label_dic[yt]
                 except KeyError:
                     y = len(self.label_dic)
-                    self.label_dic[Y[t]] = y
-                    self.label_array.append(Y[t])
+                    self.label_dic[yt] = y
+                    self.label_array.append(yt)
                 # Adds features
                 self._add(prev_y, y, X, t)
                 prev_y = y
@@ -106,14 +109,16 @@ class FeatureSet(object):
         for feature_string in self.feature_func(X, t):
             if feature_string in self.feature_dic.keys():
                 if (prev_y, y) in self.feature_dic[feature_string].keys():
-                    self.empirical_counts[self.feature_dic[feature_string][(prev_y, y)]] += 1
+                    self.empirical_counts[self.feature_dic[feature_string][(
+                        prev_y, y)]] += 1
                 else:
                     feature_id = self.num_features
                     self.feature_dic[feature_string][(prev_y, y)] = feature_id
                     self.empirical_counts[feature_id] += 1
                     self.num_features += 1
                 if (-1, y) in self.feature_dic[feature_string].keys():
-                    self.empirical_counts[self.feature_dic[feature_string][(-1, y)]] += 1
+                    self.empirical_counts[self.feature_dic[feature_string]
+                                          [(-1, y)]] += 1
                 else:
                     feature_id = self.num_features
                     self.feature_dic[feature_string][(-1, y)] = feature_id
@@ -144,7 +149,8 @@ class FeatureSet(object):
         feature_ids = list()
         for feature_string in self.feature_func(X, t):
             try:
-                feature_ids.append(self.feature_dic[feature_string][(prev_y, y)])
+                feature_ids.append(
+                    self.feature_dic[feature_string][(prev_y, y)])
             except KeyError:
                 pass
         return feature_ids

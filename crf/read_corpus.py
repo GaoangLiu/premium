@@ -18,25 +18,24 @@ def read_conll_corpus(filename: str):
     element_size = 0
     data, X, Y = [], [], []
     for s in cf.io.read(filename):
-        words = s.strip().split()
-        if len(words) == 0:
+        words = [e for e in s.strip().split() if e]
+        if not words:
             data.append((X, Y))
             X, Y = [], []
         else:
             if element_size == 0:
                 element_size = len(words)
-            elif element_size != len(words):
-                raise FileFormatError
-            X.append(words[:-1])
-            Y.append(words[-1])
+            elif element_size == len(words):
+                X.append(words[:-1])
+                Y.append(words[-1])
     if len(X) > 0:
         data.append((X, Y))
 
     return data
 
 
-fn = 'data/chunking_small/small_train.data'
-data = read_conll_corpus(fn)
-for d in data:
-    if len(d[0]) < 5:
-        print(d)
+# fn = 'data/chunking_small/small_train.data'
+# data = read_conll_corpus(fn)
+# for d in data:
+#     if len(d[0]) < 5:
+#         print(d)
