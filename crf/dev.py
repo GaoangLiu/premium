@@ -29,22 +29,28 @@ def to_train(words: List) -> List[Tuple]:
     return res
 
 
-lst = list(cf.io.walk('/data/talks/yimutian'))
-random.shuffle(lst)
+texts = []
+for ln in cf.io.read('/tmp/web'):
+    js = json.loads(ln)
+    texts.append(js['title'])
+    texts.append(js['topic'])
+    texts.extend(js['content'].split('。'))
+
+# lst = list(cf.io.walk('/data/talks/yimutian'))
+# random.shuffle(lst)
+lst = texts
 
 all_tokens = []
 
-for f in lst[:100]:
-    js = cf.js(f)
-    contents = [e['content'] for e in js]
-    token_list = [jieba.lcut(e) for e in contents]
-    xs = [to_train(x) for x in token_list]
-    all_tokens.extend(xs)
+for f in lst[:100000]:
+    f = f.replace(' ', '，')
+    xs = to_train(jieba.lcut(f))
+    all_tokens.append(xs)
 
 train_s, test_s = '', ''
 for i, lst in enumerate(all_tokens):
     s = '\n'.join([' '.join(e) for e in lst])
-    if i > len(all_tokens) * 0.8:
+    if i > len(all_tokens) * 0.99:
         test_s += s + '\n\n'
     else:
         train_s += s + '\n\n'

@@ -14,19 +14,22 @@ def default_feature_func(X, t):
     """
     Returns a list of feature strings.
     (Default feature function)
-    :param X: An observation vector
-    :param t: time
-    :return: A list of feature strings
+        :param X: An observation vector
+        :param t: time
+        :return: A list of feature strings
     """
     length = len(X)
 
     features = []
-    if not X[t]: return features
+    if not X[t]:
+        return features
     features.append('U[0]:%s' % X[t][0])  # U stands for unigram
     # features.append('POS_U[0]:%s' % X[t][1])
     if t < length-1:
         features.append('U[+1]:%s' % (X[t+1][0]))
         features.append('B[0]:%s %s' % (X[t][0], X[t+1][0]))
+        if t > 0:
+            features.append('B[1]:%s %s' % (X[t-1][0], X[t+1][0]))
         # features.append('POS_U[1]:%s' % X[t+1][1])
         # features.append('POS_B[0]:%s %s' % (X[t][1], X[t+1][1]))
         if t < length-2:

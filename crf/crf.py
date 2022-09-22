@@ -228,8 +228,9 @@ class LinearChainCRF():
     # For L-BFGS
     squared_sigma = 10.0
 
-    def __init__(self):
-        pass
+    def __init__(self, model_file:str=None):
+        if model_file is not None:
+            self.load(model_file)
 
     def _read_corpus(self, filename):
         return read_conll_corpus(filename)
@@ -312,11 +313,6 @@ class LinearChainCRF():
         correct_count = 0
         for X, Y in test_data:
             Yprime = self.inference(X)
-            print(X)
-            print(Yprime)
-            print('-'*88)
-            import random 
-            if random.randint(1,100)>90: exit(0)
             for t in range(len(Y)):
                 total_count += 1
                 if Y[t] == Yprime[t]:
@@ -376,20 +372,19 @@ class LinearChainCRF():
             sequence.append(next_label)
         return [self.label_dic[label_id] for label_id in sequence[::-1][1:]]
 
-    def save_model(self, model_filename):
+    def save_model(self, model_filename:str):
         model = {"feature_dic": self.feature_set.serialize_feature_dic(),
                  "num_features": self.feature_set.num_features,
                  "labels": self.feature_set.label_array,
                  "params": list(self.params)}
-        f = open(model_filename, 'w')
-        json.dump(model, f, ensure_ascii=False,
+        with open(model_filename, 'w') as f:
+            json.dump(model, f, ensure_ascii=False,
                   indent=2, separators=(',', ':'))
-        f.close()
         import os
         cf.info('* Trained CRF Model has been saved at "%s/%s"' %
                 (os.getcwd(), model_filename))
 
-    def load(self, model_filename):
+    def load(self, model_filename:str):
         f = open(model_filename)
         model = json.load(f)
         f.close()
