@@ -92,7 +92,7 @@ class CRF(object):
         self.model.fit(self.X, self.y)
 
     @classmethod
-    def load_model(cls, model_path: str):
+    def load_model(cls, model_path: str)->'CRF':
         return pickle.load(open(model_path, 'rb'))
 
     def save_model(self, model_path: str):
@@ -112,6 +112,8 @@ class CRF(object):
 
 
 def get_data(datafile: str) -> List[List[Tuple[str, str]]]:
+    """ Convert data to <X, y> tuples. 
+    """
     chunks = []
     for ln in cf.io.read(datafile):
         if not ln:
