@@ -9,13 +9,27 @@ import sklearn_crfsuite
 class CRF(object):
     """ A skleanr crfsuite wrapper for fast model training and deployment
     """
-
     def __init__(self, X: List, y: List, feature_template: str = None) -> None:
         """
         Args:
             X: input data
             y: labels
             feature_template: path of feature template file, follow https://taku910.github.io/crfpp/ for template example
+            A feature templte demo:
+            # Unigram
+            U00:%x[-2,0]
+            U01:%x[-1,0]
+            U05:%x[-1,0]/%x[0,0]
+            U06:%x[0,0]/%x[1,0]
+
+            U10:%x[-2,1]
+            U15:%x[-2,1]/%x[-1,1]
+
+            U20:%x[-2,1]/%x[-1,1]/%x[0,1]
+            U21:%x[-1,1]/%x[0,1]/%x[1,1]
+
+            # Bigram
+            B
         """
         self.X = X
         self.y = y
@@ -44,7 +58,7 @@ class CRF(object):
             s[i + 2][0] if i < len(s) - 2 else '<END>',
             'B[-1]': [s[i - 1][0], s[i][0]] if i > 0 else '<START>',
             'B[+1]': [s[i][0], s[i + 1][0]] if i < len(s) - 1 else '<END>',
-            'B[-1/1]': [s[i - 1][0], s[i][0], s[i + 1][0]]
+            'B[-1]B[1]': [s[i - 1][0], s[i][0], s[i + 1][0]]
             if i > 0 and i < len(s) - 1 else '<START_OR_END>',
         }
 
@@ -56,7 +70,6 @@ class CRF(object):
     def extract_features(self):
         """ Extract features from input data
         """
-
         self.X = [self._sent2features(s) for s in self.X]
         self.is_feature_extracted = True
         return self.X
