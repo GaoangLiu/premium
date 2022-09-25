@@ -139,6 +139,4 @@ if __name__ == '__main__':
     print('Sample input: \n', sample_x)
     print('Sample input: \n', sample_y)
     
-    clf=Classifier(100, 100, 2)
-    for epoch in range(2):
-        for x,y in 
+    
