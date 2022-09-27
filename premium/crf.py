@@ -9,6 +9,7 @@ import sklearn_crfsuite
 class CRF(object):
     """ A skleanr crfsuite wrapper for fast model training and deployment
     """
+
     def __init__(self, X: List, y: List, feature_template: str = None) -> None:
         """
         Args:
@@ -49,17 +50,17 @@ class CRF(object):
             'U[0]':
             s[i][0],
             'U[-1]':
-            s[i - 1][0] if i > 0 else '<START>',
+            s[i - 1][0] if i > 0 else '',
             'U[-2]':
-            s[i - 2][0] if i > 1 else '<START>',
+            s[i - 2][0] if i > 1 else '',
             'U[+1]':
-            s[i + 1][0] if i < len(s) - 1 else '<END>',
-            'U[+2]':
-            s[i + 2][0] if i < len(s) - 2 else '<END>',
-            'B[-1]': [s[i - 1][0], s[i][0]] if i > 0 else '<START>',
-            'B[+1]': [s[i][0], s[i + 1][0]] if i < len(s) - 1 else '<END>',
-            'B[-1]B[1]': [s[i - 1][0], s[i][0], s[i + 1][0]]
-            if i > 0 and i < len(s) - 1 else '<START_OR_END>',
+            s[i + 1][0] if i < len(s) - 1 else '',
+            # 'U[+2]':
+            # s[i + 2][0] if i < len(s) - 2 else '',
+            'B[-1]': [s[i - 1][0], s[i][0]] if i > 0 else '',
+            'B[+1]': [s[i][0], s[i + 1][0]] if i < len(s) - 1 else ''
+            # 'B[-1]B[1]': [s[i - 1][0], s[i][0], s[i + 1][0]]
+            # if i > 0 and i < len(s) - 1 else '<START_OR_END>',
         }
 
     def _sent2features(self, s: List):
@@ -72,6 +73,7 @@ class CRF(object):
         """
         self.X = [self._sent2features(s) for s in self.X]
         self.is_feature_extracted = True
+        cf.info('features extracted')
         return self.X
 
     def fit(self):
@@ -80,8 +82,7 @@ class CRF(object):
         self.model = sklearn_crfsuite.CRF(algorithm='lbfgs',
                                           c1=0.1,
                                           c2=0.1,
-                                          epsilon=0.01,
-                                          max_iterations=300,
+                                          max_iterations=200,
                                           verbose=True,
                                           all_possible_transitions=True)
         cf.info('crf model created')

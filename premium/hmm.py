@@ -9,6 +9,7 @@ import codefast as cf
 class HMM(object):
     """ HMM Chinese word segmentation
     """
+
     def __init__(self):
         cur_dir = cf.io.pwd()
         self.TRAIN_CORPUS = f'{cur_dir}/data/msr_training.utf8'
@@ -82,7 +83,7 @@ class HMM(object):
 
         with open(self.trans_pickle, 'wb') as f:
             pickle.dump(trans, f)
-        
+
         cf.info('training completed.')
         return emit_p, trans
 
@@ -174,7 +175,10 @@ if __name__ == '__main__':
     texts += [
         '好的，现在我们尝试一下带标点符号的分词效果。', '中华人民共和国不可分割，坚决捍卫我国领土。',
         '英国白金汉宫发表声明，菲利浦亲王去世，享年九十九岁。', '扬帆远东做与中国合作的先行', '不是说伊尔新一轮裁员了。',
-        '滴滴遭调查后，投资人认为中国科技业将强化数据安全合规。','小明硕士毕业于中国科学院计算所，后在日本京都大学深造'
+        '滴滴遭调查后，投资人认为中国科技业将强化数据安全合规。', '小明硕士毕业于中国科学院计算所，后在日本京都大学深造',
+        '可以做为通用中文语料，做预训练的语料或构建词向量，也可以用于构建知识问答。', '明天天气怎么样?', '我爱自由，但是效果看起来很一般。',
+        '全国代表大会高举邓小平理论伟大旗帜',
+        '金额类实体识别使用的数据集来源于慧算账公司“询问价位”的事件结果，总计543条数据，大部分是手动标注数据，有一部分人工构造的数据。'
     ]
     for text in texts:
         ret = ' '.join(HMM().segment(text))
