@@ -11,7 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-
+from torch import nn
 
 # dataset definition
 class CSVDataset(Dataset):
@@ -52,9 +52,6 @@ def prepare_data(path):
     train_dl = DataLoader(train, batch_size=32, shuffle=True)
     test_dl = DataLoader(test, batch_size=1024, shuffle=False)
     return train_dl, test_dl
-
-
-from torch import nn
 
 
 class MLP(nn.Module):
