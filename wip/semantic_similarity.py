@@ -10,15 +10,15 @@ from tensorflow import keras as K
 
 max_length = 128  # Maximum length of input sentence to the model.
 batch_size = 32
-epochs = 2
+epochs = 5
 import pandas as pd
 import os
 
 # Labels in our dataset.
 labels = ["contradiction", "entailment", "neutral"]
 PATH = '/tmp/snli'
-train_df = pd.read_csv(os.path.join(PATH, "snli_1.0_train.csv"),nrows=1000)
-valid_df = pd.read_csv(os.path.join(PATH, "snli_1.0_dev.csv"),nrows=1000)
+train_df = pd.read_csv(os.path.join(PATH, "snli_1.0_train.csv"))
+valid_df = pd.read_csv(os.path.join(PATH, "snli_1.0_dev.csv"))
 test_df = pd.read_csv(os.path.join(PATH, "snli_1.0_test.csv"))
 
 # Shape of the data
@@ -168,7 +168,6 @@ with strategy.scope():
 print(f"Strategy: {strategy}")
 print(model.summary())
 
-
 train_data = BertSemanticDataGenerator(
     train_df[["sentence1", "sentence2"]].values.astype("str"),
     y_train,
@@ -189,5 +188,3 @@ history = model.fit(
     use_multiprocessing=True,
     workers=-1,
 )
-
-

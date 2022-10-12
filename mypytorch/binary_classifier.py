@@ -139,4 +139,9 @@ if __name__ == '__main__':
     print('Sample input: \n', sample_x)
     print('Sample input: \n', sample_y)
     
+    clf = Classifier(100, 100, 1)
+    for epoch in range(3):
+        for inputs, targets in train_loader:
+            clf.train(inputs, targets)
+            
     
