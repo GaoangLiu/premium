@@ -86,3 +86,4 @@ class VariationalAutoEncoder(keras.Model):
                                         tf.exp(z_log_var) + 1)
         self.add_loss(kl_loss)
         return reconstructed
+
