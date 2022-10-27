@@ -2,24 +2,26 @@
 """ semantic_similarity.py: Semantic Similarity with BERT 
 https://keras.io/examples/nlp/semantic_similarity_with_bert/
 """
+import os
+import pandas as pd
 import codefast as cf
 import numpy as np
 import tensorflow as tf
 import transformers
 from tensorflow import keras as K
+transformers.logging.set_verbosity_error()
 
-max_length = 128  # Maximum length of input sentence to the model.
-batch_size = 32
-epochs = 5
-import pandas as pd
-import os
+MAX_LENGTH = 128  # Maximum length of input sentence to the model.
+BATCH_SIZE = 128
+EPOCHS = 10
+BERT_NAME = "bert-base-chinese"
 
 # Labels in our dataset.
 labels = ["contradiction", "entailment", "neutral"]
-PATH = '/tmp/snli'
-train_df = pd.read_csv(os.path.join(PATH, "snli_1.0_train.csv"))
-valid_df = pd.read_csv(os.path.join(PATH, "snli_1.0_dev.csv"))
-test_df = pd.read_csv(os.path.join(PATH, "snli_1.0_test.csv"))
+PATH = '/tmp/mnli'
+train_df = pd.read_csv(os.path.join(PATH, "mnli_train.csv"))
+valid_df = pd.read_csv(os.path.join(PATH, "mnli_dev.csv"))
+test_df = pd.read_csv(os.path.join(PATH, "mnli_test.csv"))
 
 # Shape of the data
 print(f"Total train samples : {train_df.shape[0]}")
@@ -61,11 +63,12 @@ class BertSemanticDataGenerator(tf.keras.utils.Sequence):
         (or just `[input_ids, attention_mask, `token_type_ids]`
          if `include_targets=False`)
     """
+
     def __init__(
         self,
         sentence_pairs,
         labels,
-        batch_size=batch_size,
+        batch_size=BATCH_SIZE,
         shuffle=True,
         include_targets=True,
     ):
@@ -77,7 +80,7 @@ class BertSemanticDataGenerator(tf.keras.utils.Sequence):
         # Load our BERT Tokenizer to encode the text.
         # We will use base-base-uncased pretrained model.
         self.tokenizer = transformers.BertTokenizer.from_pretrained(
-            "bert-base-uncased", do_lower_case=True)
+            BERT_NAME, do_lower_case=True)
         self.indexes = np.arange(len(self.sentence_pairs))
         self.on_epoch_end()
 
@@ -96,7 +99,7 @@ class BertSemanticDataGenerator(tf.keras.utils.Sequence):
         encoded = self.tokenizer.batch_encode_plus(
             sentence_pairs.tolist(),
             add_special_tokens=True,
-            max_length=max_length,
+            max_length=MAX_LENGTH,
             return_attention_mask=True,
             return_token_type_ids=True,
             pad_to_max_length=True,
@@ -126,27 +129,28 @@ strategy = tf.distribute.MirroredStrategy()
 
 with strategy.scope():
     # Encoded token ids from BERT tokenizer.
-    input_ids = tf.keras.layers.Input(shape=(max_length, ),
+    input_ids = tf.keras.layers.Input(shape=(MAX_LENGTH, ),
                                       dtype=tf.int32,
                                       name="input_ids")
     # Attention masks indicates to the model which tokens should be attended to.
-    attention_masks = tf.keras.layers.Input(shape=(max_length, ),
+    attention_masks = tf.keras.layers.Input(shape=(MAX_LENGTH, ),
                                             dtype=tf.int32,
                                             name="attention_masks")
     # Token type ids are binary masks identifying different sequences in the model.
-    token_type_ids = tf.keras.layers.Input(shape=(max_length, ),
+    token_type_ids = tf.keras.layers.Input(shape=(MAX_LENGTH, ),
                                            dtype=tf.int32,
                                            name="token_type_ids")
     # Loading pretrained BERT model.
-    bert_model = transformers.TFBertModel.from_pretrained("bert-base-uncased")
+    bert_model = transformers.TFBertModel.from_pretrained(BERT_NAME)
     # Freeze the BERT model to reuse the pretrained features without modifying them.
     bert_model.trainable = False
 
     bert_output = bert_model.bert(input_ids,
                                   attention_mask=attention_masks,
                                   token_type_ids=token_type_ids)
-    sequence_output = bert_output.last_hidden_state
-    pooled_output = bert_output.pooler_output
+    print(bert_output)
+    sequence_output = bert_output[0]
+    pooled_output = bert_output[1]
     # Add trainable layers on top of frozen layers to adapt the pretrained features on the new data.
     bi_lstm = tf.keras.layers.Bidirectional(
         tf.keras.layers.LSTM(64, return_sequences=True))(sequence_output)
@@ -171,20 +175,20 @@ print(model.summary())
 train_data = BertSemanticDataGenerator(
     train_df[["sentence1", "sentence2"]].values.astype("str"),
     y_train,
-    batch_size=batch_size,
+    batch_size=BATCH_SIZE,
     shuffle=True,
 )
 valid_data = BertSemanticDataGenerator(
     valid_df[["sentence1", "sentence2"]].values.astype("str"),
     y_val,
-    batch_size=batch_size,
+    batch_size=BATCH_SIZE,
     shuffle=False,
 )
 
 history = model.fit(
     train_data,
     validation_data=valid_data,
-    epochs=epochs,
+    epochs=EPOCHS,
     use_multiprocessing=True,
     workers=-1,
 )

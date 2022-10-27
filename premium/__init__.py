@@ -4,6 +4,7 @@ import premium.data.preprocess
 import premium.nlp
 from premium.data.csv import CsvReader
 from premium.data.datasets import downloader, word2vec
+from premium.data.datasets import downloader as datasets
 from premium.data.postprocess import array, mop
 from premium.data.preprocess import (AbstractDataLoader, Corpus, LabelData, TextChinese,
                                      SentenceList, TrainData, any_cn, birdview,

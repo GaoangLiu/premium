@@ -1,56 +1,51 @@
 #!/usr/bin/env python
 # https://colab.research.google.com/github/bentrevett/pytorch-sentiment-analysis/blob/master/1%20-%20Simple%20Sentiment%20Analysis.ipynb#scrollTo=1OXNyH3QzwT5
+import json
 import os
 import random
-import json
 import re
 import sys
 from collections import defaultdict
 from functools import reduce
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import codefast as cf
 import joblib
 import numpy as np
 import pandas as pd
-from rich import print
-from typing import List, Union, Callable, Set, Dict, Tuple, Optional
-
-import torch as T
+import torch
 import torchtext as tt
-import numpy as np
+from rich import print
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from torch.utils.data import DataLoader, Dataset
+from tensorflow.keras.preprocessing.text import Tokenizer
 
-from torch.utils.data import Dataset, DataLoader
+MAX_WORDS = 10000     # imdb’s vocab_size 即词汇表大小
+MAX_LEN = 200     # max length
+BATCH_SIZE = 256
+EMB_SIZE = 128     # embedding size
+HID_SIZE = 128     # lstm hidden size
+DROPOUT = 0.2
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# 借助Keras加载imdb数据集
+df = pd.read_csv('/tmp/imdb_sentiment.csv').sample(1000)
+x_train, x_test, y_train, y_test = train_test_split(df['review'],
+                                                    df['sentiment'])
 
-class CustomDataset(Dataset):
-    def __init__(self, csv_file: str = '/tmp/imdb_sentiment.csv'):
-        self.df = pd.read_csv(csv_file)
-        self.tokenizer = tt.data.get_tokenizer('basic_english')
-        self.vocab = tt.vocab.build_vocab_from_iterator(
-            map(self.tokenizer, self.df['review']))
-        self.vocab.set_default_index(self.vocab['the'])
+from premium.data.preprocess import tokenize
+tokenizer = Tokenizer(num_words=MAX_WORDS, oov_token='<unk>')
+tokenizer.fit_on_texts(x_train)
+x_train = tokenizer.texts_to_sequences(x_train)
+x_test=tokenizer.transform(x_test)
 
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, idx):
-        text = self.df['review'][idx]
-        label = self.df['sentiment'][idx]
-        text = self.tokenizer(text)
-        text = [self.vocab[token] for token in text]
-
-        return text, label
-
-
-tokenizer = tt.data.get_tokenizer('basic_english')
-text = "are you okay, my friend? I'm fine."
-print(tokenizer(text))
-
-# training_data = CustomDataset()
-# train_dataloader = DataLoader(training_data,
-#                               batch_size=64,
-#                               shuffle=True,
-#                               collate_fn=lambda x: x)
-
-# train_features, train_labels = next(iter(train_dataloader))
-# print(train_features, train_labels)
+x_train = pad_sequences(x_train,
+                        maxlen=MAX_LEN,
+                        padding="post",
+                        truncating="post")
+x_test = pad_sequences(x_test,
+                       maxlen=MAX_LEN,
+                       padding="post",
+                       truncating="post")
+print(x_train.shape, x_test.shape)

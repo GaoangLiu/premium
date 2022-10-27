@@ -19,24 +19,26 @@ class Urls(object):
 Path = TypeVar('Path', str, List[str])
 
 
+def fetch_from_url(remote_url: str):
+    target = f'/tmp/{cf.io.basename(remote_url)}'
+    cf.info(f'downloading {remote_url}')
+    cf.net.download(remote_url, target)
+    # unzip data if necessary
+    if target.endswith(('.zip', '.gz')):
+        cf.info(f'Unzip file {target}')
+        cf.shell(f'7z x {target} -o/tmp -y')
+
+
 def fetch_data(fpath: str, sub_dir: str = None) -> None:
     cf.info(f'Downloading {fpath}')
-    if re.search('^http',
-                 fpath):     # support downloading model from third party
+    # support downloading model from third party
+    if re.search('^http', fpath):
         online_url = fpath
     else:
         online_url = os.path.join(Urls.prefix, fpath)
         if sub_dir:
             online_url = cf.urljoin(Urls.prefix, sub_dir, fpath)
-    dest = f'/tmp/{cf.io.basename(fpath)}'
-    cf.net.download(online_url, dest)
-
-    # unzip data if necessary
-    if fpath.endswith(('.zip', '.gz')):
-        cf.info(f'Unzip file {fpath}')
-        cf.shell(f'7z x {dest} -o/tmp -y')
-        # cf.info(f'7z {dest} completes, removing compressed file...')
-        # cf.shell(f'rm {dest}')
+    fetch_from_url(online_url)
 
 
 @dataclass
@@ -224,6 +226,15 @@ class Downloader(object):
         dev,1111
         """
         fetch_data('chn_senti_corp.csv', 'classification')
+
+    def snli(self):
+        fetch_from_url('https://host.ddot.cc/snli.zip')
+
+    def mnli(self):
+        """ Chinese-MNLI 自然语言推理数据集
+        https://jishuin.proginn.com/p/763bfbd72666
+        """
+        fetch_from_url('https://host.ddot.cc/mnli.zip')
 
     def get(self, filename: str):
         url_map = {
