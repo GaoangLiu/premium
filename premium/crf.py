@@ -6,37 +6,19 @@ import codefast as cf
 import sklearn_crfsuite
 
 
-class CRF(object):
-    """ A skleanr crfsuite wrapper for fast model training and deployment
-    """
-
-    def __init__(self, X: List, y: List, feature_template: str = None) -> None:
-        """
+class InputData(object):
+    def __init__(self, X: List, y: List = None) -> None:
+        """ 
         Args:
-            X: input data
-            y: labels
-            feature_template: path of feature template file, follow https://taku910.github.io/crfpp/ for template example
-            A feature templte demo:
-            # Unigram
-            U00:%x[-2,0]
-            U01:%x[-1,0]
-            U05:%x[-1,0]/%x[0,0]
-            U06:%x[0,0]/%x[1,0]
-
-            U10:%x[-2,1]
-            U15:%x[-2,1]/%x[-1,1]
-
-            U20:%x[-2,1]/%x[-1,1]/%x[0,1]
-            U21:%x[-1,1]/%x[0,1]/%x[1,1]
-
-            # Bigram
-            B
+            X(List): a list of token list, e.g., [['The', 'cute', 'cat', 'is', 'sleepling']]
+            y(List): a list of label list, e.g., [['O', 'O', 'M', 'O', 'O']]
         """
         self.X = X
         self.y = y
-        self.feature_template = feature_template
         self.is_feature_extracted = False
-        self.model = None
+
+    def __len__(self) -> int:
+        return len(self.X)
 
     def _word2features(self, s: List[Tuple],
                        i: int) -> Dict[str, Union[str, List[str]]]:
@@ -63,22 +45,52 @@ class CRF(object):
             # if i > 0 and i < len(s) - 1 else '',
         }
 
-    def _sent2features(self, s: List):
+    def _sent2features(self, x: List):
         """ Convert a sentence to features
         """
-        return [self._word2features(s, i) for i, _ in enumerate(s)]
+        return [self._word2features(x, i) for i, _ in enumerate(x)]
 
-    def extract_features(self):
+    def get_features(self):
         """ Extract features from input data
         """
-        self.X = [self._sent2features(s) for s in self.X]
+        self.X = [self._sent2features(x) for x in self.X]
         self.is_feature_extracted = True
         cf.info('features extracted')
         return self.X
 
-    def fit(self):
-        if not self.is_feature_extracted:
-            self.X = self.extract_features()
+
+class CRF(object):
+    """ A skleanr crfsuite wrapper for fast model training and deployment
+    """
+
+    def __init__(self, feature_template: str = None) -> None:
+        """
+        Args:
+            X: input data
+            y: labels
+            feature_template: path of feature template file, follow https://taku910.github.io/crfpp/ for template example
+            A feature templte demo:
+            # Unigram
+            U00:%x[-2,0]
+            U01:%x[-1,0]
+            U05:%x[-1,0]/%x[0,0]
+            U06:%x[0,0]/%x[1,0]
+
+            U10:%x[-2,1]
+            U15:%x[-2,1]/%x[-1,1]
+
+            U20:%x[-2,1]/%x[-1,1]/%x[0,1]
+            U21:%x[-1,1]/%x[0,1]/%x[1,1]
+
+            # Bigram
+            B
+        """
+        self.feature_template = feature_template
+        self.is_feature_extracted = False
+        self.model = None
+
+    def fit(self, X, y):
+        X = InputData(X).get_features()
         self.model = sklearn_crfsuite.CRF(algorithm='lbfgs',
                                           c1=0.1,
                                           c2=0.1,
@@ -86,7 +98,7 @@ class CRF(object):
                                           verbose=True,
                                           all_possible_transitions=True)
         cf.info('crf model created')
-        self.model.fit(self.X, self.y)
+        self.model.fit(X, y)
 
     @classmethod
     def load_model(cls, model_path: str) -> 'CRF':
@@ -99,7 +111,7 @@ class CRF(object):
     def predict(self, X: List):
         """ Predict labels for input data
         """
-        return self.model.predict(X)
+        return self.model.predict(InputData(X).get_features())
 
     def evaluate(self):
         pass

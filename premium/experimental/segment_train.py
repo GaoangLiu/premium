@@ -82,12 +82,13 @@ def test():
         print(_token(text, tags))
 
 
-# xs = [[x for x in e.split(' ') if x]
-#       for e in cf.io.read('/tmp/msr_training.utf8')]
-xs = cf.read('/tmp/corpus').top(20000).each(
-    lambda x: [e for e in x.split(' ') if e]).filter(len).data
+xs = [[x for x in e.split(' ') if x]
+      for e in cf.io.read('/tmp/msr_training.utf8')]
+# xs = cf.read('/tmp/corpus').top(20000).each(
+#     lambda x: [e for e in x.split(' ') if e]).filter(len).data
 xs = reformat(xs)
 print(xs[:10])
+# exit(0)
 # xs, labels = get_data()
 labels = [[_[1] for _ in x] for x in xs]
 print(xs[:10], labels[:10])

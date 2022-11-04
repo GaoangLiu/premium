@@ -34,6 +34,9 @@ class KerasCallbacks(object):
     def __init__(self, patience: int = 10, log_dir: str = "/tmp/logs") -> None:
         self.patience = patience
         self.log_dir = log_dir
+        if cf.io.exists('/data/tmp/logs'):
+            self.log_dir = '/data/tmp/logs'
+            
         self.early_stopping = EarlyStopping(
             monitor="val_loss",
             patience=patience,
@@ -75,7 +78,8 @@ class KerasCallbacks(object):
     @property
     def all(self) -> List[Dict]:
         # return all callbacks
-        _callbacks = [v for _, v in self.__dict__.items() if isinstance(v, Callback)]
+        _callbacks = [v for _, v in self.__dict__.items()
+                      if isinstance(v, Callback)]
         names = [c.__class__.__name__ for c in _callbacks]
         cf.info("using callbacks:", names)
         return _callbacks
@@ -83,5 +87,6 @@ class KerasCallbacks(object):
     def some(self, keys: List[str]) -> List[Dict]:
         # return only some callbacks
         callbacks = [self.__dict__[k] for k in keys]
-        cf.info("using callbacks", list(map(lambda x: x.__class__.__name__, callbacks)))
+        cf.info("using callbacks", list(
+            map(lambda x: x.__class__.__name__, callbacks)))
         return callbacks
