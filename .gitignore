@@ -6,3 +6,4 @@ tt.train
 *.csv
 *.txt
 projects/*
+outputs/*

@@ -19,19 +19,13 @@ from torch.optim import SGD, Adam
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import BertForTokenClassification, BertTokenizerFast
-
+import premium as pm
 # refer: https://towardsdatascience.com/named-entity-recognition-with-bert-in-pytorch-a454405e0b6a
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-
-class Cfg(object):
-    max_length = 128
-    model_name = 'bert-base-uncased'
-    learning_rate = 5e-3
-    epochs = 1
-    batch_size = 32
-    model_path = 'nerbert.pt'
-    use_cuda = torch.cuda.is_available()
+Cfg = pm.load_yaml('data/config/ner_bert.yaml')
+Cfg.use_cuda = torch.cuda.is_available()
+cf.info(f'config is {Cfg}')
 
 
 class Properties(object):
@@ -56,7 +50,7 @@ class Properties(object):
         return type(
             'Labels', (object, ),
             dict(to_ids=labels_to_ids,
-                 from_ids=ids_to_labels,
+                 to_labels=ids_to_labels,
                  unique=unique_labels,
                  values=labels))
 
@@ -175,8 +169,8 @@ class NerModel(object):
             dataloader(DataLoader):
         """
         device = torch.device("cuda" if Cfg.use_cuda else "cpu")
-
         _acc, _loss = 0, 0
+        
         for data, label in tqdm(dataloader):
             label = label.to(device)
             input_id = data['input_ids'].squeeze(1).to(device)
@@ -242,7 +236,7 @@ class NerModel(object):
 
         r_eva = cls._update(model, cls._load_data(df_test), optimizer=None)
         val_accuracy = r_eva.acc / len(df_test)
-        cf.info('Test Accuracy: {:<.3f}'.format(val_accuracy))
+        cf.info({'test_acc': '{:<.3f}'.format(val_accuracy)})
 
 
 if __name__ == '__main__':
