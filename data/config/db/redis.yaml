@@ -1,0 +1,4 @@
+driver: redis
+pass: drowssap
+timeout: 20
+user: john3

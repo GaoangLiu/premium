@@ -1,0 +1,11 @@
+batch_size: 10
+lr: 1e-4
+
+more:
+  max_length: 120
+
+defaults:
+  - db: mysql
+
+databases:
+  - db: redis
