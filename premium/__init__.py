@@ -20,4 +20,4 @@ from premium.measure import libra
 from premium.models.binary_classifiers import BinaryClassifierSet
 from premium.models.clf import Classifier
 from premium.models.model_config import KerasCallbacks, ModelConfig
-from premium.data.loader import load_yaml
+from premium.data.loader import load_yaml, make_obj

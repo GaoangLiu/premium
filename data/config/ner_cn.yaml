@@ -1,0 +1,10 @@
+batch_size: 32
+epochs: 1
+max_length: 128
+model_name: bert-base-chinese
+model_path: /tmp/nercn.pt
+learning_rate: 5.0e-3
+
+
+defaults:
+  ner_label: -100

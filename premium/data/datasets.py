@@ -246,5 +246,5 @@ class Downloader(object):
         if filename in url_map:
             cf.net.download(url_map[filename], '/tmp/' + filename)
 
-
 downloader = Downloader()
+
