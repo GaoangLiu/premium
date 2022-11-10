@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-
 from abc import ABC, abstractmethod
 from typing import List, Union
 import torch
 import torchtext as tt
+
 
 class Tokenizer(ABC):
     def __init__(self, *args, **kwargs):
@@ -40,7 +40,7 @@ class VocabTokenizer(Tokenizer):
         self.tokenizer = tt.data.get_tokenizer('basic_english')
         self.vocab = None
         self.max_size = kwargs.get('max_size', 10000)
-        # tt.vocab.Vocab(self.tokenizer(yield_tokens(self.df, 'text')), max_size=Configs.MAX_WORDS)
+        self.max_length = kwargs.get('max_length', -1)
 
     def _yield_tokens(self, texts: List[str]):
         for text in texts:
@@ -50,15 +50,23 @@ class VocabTokenizer(Tokenizer):
         return len(self.vocab)
 
     def fit(self, texts: List[str]) -> 'Self':
-        assert isinstance(texts, list), "texts must be a list"
-        self.vocab = tt.vocab.Vocab(self._yield_tokens(texts), max_size=self.max_size)
+        # assert isinstance(texts, list), "texts must be a list"
+        self.vocab = tt.vocab.build_vocab_from_iterator(self._yield_tokens(texts))
         self.vocab.set_default_index(0)
         return self
 
-    def transform(self, texts: Union[str, List[str]]) -> List[List[int]]:
+    def transform(self, texts: Union[str, List[str]]) -> List[torch.tensor]:
         if isinstance(texts, str):
             texts = [texts]
-        return [[self.vocab[tok] for tok in self.tokenizer(text)] for text in texts]
+        tensors = []
+        for text in texts:
+            tokens = [self.vocab[tok] for tok in self.tokenizer(text)]
+            if self.max_length > 0:
+                tokens = tokens[:self.max_length]
+                if len(tokens) < self.max_length:
+                    tokens.extend([0] * (self.max_length - len(tokens)))
+            tensors.append(torch.tensor(tokens))
+        return tensors
 
     def fit_transform(self, texts: Union[str, List[str]]) -> List[List[int]]:
         if isinstance(texts, str):
