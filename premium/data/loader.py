@@ -42,7 +42,7 @@ def load_yaml(path) -> Struct:
         return make_obj(yaml.safe_load(f))
 
 
-class _Cache(object):
+class DataRetriver(object):
     def __init__(self, remote: str, local: str, cache_dir: str) -> None:
         self.remote = remote
         self.local = local
@@ -63,17 +63,24 @@ def ner_weibo() -> Struct:
     """ ner weibo data
     https://github.com/InsaneLife/ChineseNLPCorpus/tree/master/NER
     """
-    x = _Cache(
+    x = DataRetriver(
         'https://host.ddot.cc/weiboNER_2nd_conll.train.csv', 'train.csv', 'ner_weibo')
-    t = _Cache('https://host.ddot.cc/weiboNER_2nd_conll.test.csv',
+    t = DataRetriver('https://host.ddot.cc/weiboNER_2nd_conll.test.csv',
                'test.csv', 'ner_weibo')
-    v = _Cache('https://host.ddot.cc/weiboNER_2nd_conll.dev.csv',
+    v = DataRetriver('https://host.ddot.cc/weiboNER_2nd_conll.dev.csv',
                'dev.csv', 'ner_weibo')
     return make_obj(dict(train=x.df, test=t.df, val=v.df))
 
 
 def ner_en() -> Struct:
     """English ner dataset"""
-    x = _Cache(
+    x = DataRetriver(
         'https://host.ddot.cc/ner_en.csv', 'ner_en.csv', 'ner')
+    return make_obj(dict(train=x.df))
+
+
+def imdb_sentiment() -> Struct:
+    """imdb sentiment dataset"""
+    x = DataRetriver(
+        'https://host.ddot.cc/imdb_sentiment.csv', 'sentiment.csv', 'imdb')
     return make_obj(dict(train=x.df))
