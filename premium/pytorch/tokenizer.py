@@ -40,7 +40,6 @@ class VocabTokenizer(Tokenizer):
         super().__init__(*args, **kwargs)
         self.tokenizer = tt.data.get_tokenizer('basic_english')
         self.vocab = None
-        self.vocab_size = kwargs.get('vocab_size', 10000)  # vocab size
         self.max_len = kwargs.get('max_len', -1)
         self.padding = kwargs.get('padding', False)
 

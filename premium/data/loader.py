@@ -84,3 +84,9 @@ def imdb_sentiment() -> Struct:
     x = DataRetriver(
         'https://host.ddot.cc/imdb_sentiment.csv', 'sentiment.csv', 'imdb')
     return make_obj(dict(train=x.df))
+
+def spam_en()->Struct:
+    x = DataRetriver(
+        'https://host.ddot.cc/spam_en.csv', 'spam_en.csv', 'spam')
+    return make_obj(dict(train=x.df))
+    
