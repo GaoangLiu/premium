@@ -69,16 +69,20 @@ X, V = train_test_split(df, test_size=0.2, random_state=42)
 V, T = train_test_split(V, test_size=0.5, random_state=42)
 print(T)
 
-tokenizer = VocabTokenizer().load('/tmp/myvocab.pt')
+tokenizer = VocabTokenizer()
+tokenizer.fit(df.text.tolist())
+tokenizer.save('/tmp/myvocab.pt')
+tokenizer.load('/tmp/myvocab.pt')
 vocab_size = len(tokenizer)
 Configs.MAX_WORDS = vocab_size + 2
 print('vocab size ', len(tokenizer))
 # print(tokenizer.['the'])
+        
 
 num_class = 2
 device = Configs.DEVICE
 emsize = 64
-model = TextClassificationModel(vocab_size + 10, emsize, num_class)
+model = TextClassificationModel(vocab_size + 10, 1, emsize, 128, 1)
 print(model)
 
 criterion = torch.nn.CrossEntropyLoss()

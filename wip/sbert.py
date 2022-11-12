@@ -1,16 +1,5 @@
 #!/usr/bin/env python
-import os
-import random
-import json
-import re
-import sys
-from collections import defaultdict
-from functools import reduce
-
 import codefast as cf
-import joblib
-import numpy as np
-import pandas as pd
 from rich import print
 from typing import List, Union, Callable, Set, Dict, Tuple, Optional
 from sentence_transformers import SentenceTransformer, util
@@ -27,7 +16,7 @@ sentences2 = ['他们被这场运动弄得精神上伤痕累累。', '我对告�
 # Compute embedding for both lists
 embeddings1 = model.encode(sentences1, convert_to_tensor=True)
 embeddings2 = model.encode(sentences2, convert_to_tensor=True)
-
+print(embeddings1, embeddings1.shape)
 # Compute cosine-similarities
 cosine_scores = util.cos_sim(embeddings1, embeddings2)
 

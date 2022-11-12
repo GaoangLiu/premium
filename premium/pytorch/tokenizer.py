@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 from abc import ABC, abstractmethod
 from typing import List, Union
 import torch
@@ -39,8 +40,9 @@ class VocabTokenizer(Tokenizer):
         super().__init__(*args, **kwargs)
         self.tokenizer = tt.data.get_tokenizer('basic_english')
         self.vocab = None
-        self.max_size = kwargs.get('max_size', 10000)
-        self.max_length = kwargs.get('max_length', -1)
+        self.vocab_size = kwargs.get('vocab_size', 10000)  # vocab size
+        self.max_len = kwargs.get('max_len', -1)
+        self.padding = kwargs.get('padding', False)
 
     def _yield_tokens(self, texts: List[str]):
         for text in texts:
@@ -50,7 +52,7 @@ class VocabTokenizer(Tokenizer):
         return len(self.vocab)
 
     def fit(self, texts: List[str]) -> 'Self':
-        # assert isinstance(texts, list), "texts must be a list"
+        assert isinstance(texts, list), "texts must be a list"
         self.vocab = tt.vocab.build_vocab_from_iterator(self._yield_tokens(texts))
         self.vocab.set_default_index(0)
         return self
@@ -60,12 +62,13 @@ class VocabTokenizer(Tokenizer):
             texts = [texts]
         tensors = []
         for text in texts:
-            tokens = [self.vocab[tok] for tok in self.tokenizer(text)]
-            if self.max_length > 0:
-                tokens = tokens[:self.max_length]
-                if len(tokens) < self.max_length:
-                    tokens.extend([0] * (self.max_length - len(tokens)))
-            tensors.append(torch.tensor(tokens))
+            tokens = self.tokenizer(text)
+            if self.max_len > 0:
+                tokens = tokens[:self.max_len]
+            if self.padding:
+                tokens = tokens + ['<pad>'] * (self.max_len - len(tokens))
+            tensor = torch.tensor([self.vocab[token] for token in tokens])
+            tensors.append(tensor)
         return tensors
 
     def fit_transform(self, texts: Union[str, List[str]]) -> List[List[int]]:
