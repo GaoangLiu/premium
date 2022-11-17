@@ -21,7 +21,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class Args(object):
-    batch_size = 16
+    batch_size = 16 
     epoches = 3
 
 

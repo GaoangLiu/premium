@@ -12,6 +12,11 @@ def encode(corpus: List[str]):
     result_path = rsp.json()['result_path']
     return torch.load(result_path)
 
+x = encode(['湖边有一条小狗在玩耍'])
+y = encode([''])
+
+cos = util.pytorch_cos_sim(x, y)
+print(cos)
 
 # Corpus with example sentences
 corpus = ['技术现实主义将被历史视为一场悲剧性的运动。',
@@ -29,12 +34,15 @@ corpus_embeddings = encode(corpus)
 # queries = ['A man is eating pasta.', 'Someone in a gorilla costume is playing a set of drums.',
 #            'A cheetah chases prey on across a field.']
 queries = list(set(queries))
-queries += ['我有一辆油车自己开，给我爸买的。', '19款轩逸，我去接小孩去', '接小孩用的。对171819也行。', '我要开车去接孩子了', '给我媳妇买来通勤用的', '女朋友上班通勤时间长，有辆车方便', '车是给我爸买的 前两天相中一个vv7 他说油耗高[破涕为笑]']
+# queries += ['我有一辆油车自己开，给我爸买的。', '19款轩逸，我去接小孩去', '接小孩用的。对171819也行。', '我要开车去接孩子了', '给我媳妇买来通勤用的', '女朋友上班通勤时间长，有辆车方便', '车是给我爸买的 前两天相中一个vv7 他说油耗高[破涕为笑]']
+queries += ['的呢，想买个15到20万左右的，之前有看过大众的高尔夫。', '这个车有几个颜色，蓝色的现在有没有见色？', '我自己开，主要为了带小孩出去玩，所以想买个空间大的。', '白色的现在有现货吗？', '主要是接送孩子。', '那是还蛮特别的，我还蛮喜欢绿色的。']
+queries = ['想买个20万左右的', '买一个让老婆练手用的。']
+
 
 query_embeddings = encode(queries)
 
 # Find the closest 5 sentences of the corpus for each query sentence based on cosine similarity
-top_k = min(10, len(corpus))
+top_k = min(50, len(corpus))
 for i, query in enumerate(queries):
     query_embedding = query_embeddings[i]
 
