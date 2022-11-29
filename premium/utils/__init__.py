@@ -4,6 +4,16 @@ from typing import List, Union, Dict, Tuple
 import numpy as np
 import os
 
+def try_import(libname:str):
+    try:
+        import importlib
+        importlib.import_module(libname)
+    except ImportError:
+        import os 
+        print('{} not installed, please install gensim first'.format(libname))
+        os.system('pip install {}'.format(libname))
+
+
 
 def md5sum(fname):
     hash_md5 = hashlib.md5()
