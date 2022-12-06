@@ -1,18 +1,26 @@
-import codefast as cf
 import hashlib
-from typing import List, Union, Dict, Tuple
-import numpy as np
 import os
+from typing import Dict, List, Tuple, Union
 
-def try_import(libname:str):
+import codefast as cf
+import numpy as np
+
+
+def cf_unless_tmp(file_name: str):
+    tmp_file = '/tmp/' + file_name
+    if not os.path.exists(tmp_file):
+        cf.net.download('https://host.ddot.cc/{}'.format(file_name), tmp_file)
+    return tmp_file
+
+
+def try_import(libname: str):
     try:
         import importlib
         importlib.import_module(libname)
     except ImportError:
-        import os 
+        import os
         print('{} not installed, please install gensim first'.format(libname))
         os.system('pip install {}'.format(libname))
-
 
 
 def md5sum(fname):

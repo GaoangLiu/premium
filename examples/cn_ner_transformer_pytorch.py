@@ -23,7 +23,8 @@ import premium as pm
 # refer: https://towardsdatascience.com/named-entity-recognition-with-bert-in-pytorch-a454405e0b6a
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-Cfg = pm.load_yaml('data/config/ner_cn.yaml')
+from premium.data.loader import load_yaml, make_obj
+Cfg = load_yaml('data/config/ner_cn.yaml')
 Cfg.use_cuda = torch.cuda.is_available()
 cf.info(f'config is {Cfg}')
 
@@ -46,7 +47,7 @@ class Properties(object):
         ids_to_labels = {v: k for v, k in enumerate(sorted(unique_labels))}
         cf.info(unique_labels)
         cf.info(labels_to_ids)
-        return pm.make_obj(
+        return make_obj(
             dict(to_ids=labels_to_ids,
                  to_labels=ids_to_labels,
                  unique=unique_labels,
@@ -64,7 +65,7 @@ class Properties(object):
         x.rename(columns={'ner': 'labels'}, inplace=True)
         v.rename(columns={'ner': 'labels'}, inplace=True)
         t.rename(columns={'ner': 'labels'}, inplace=True)
-        return pm.make_obj(dict(train=x, val=v, test=t))
+        return make_obj(dict(train=x, val=v, test=t))
 
     @cachedclassproperty
     def ds(cls):
@@ -188,7 +189,7 @@ class NerModel(object):
                 optimizer.step()
         if acc_exceptions:
             cf.warning(f"acc_exceptions: {acc_exceptions}")
-        return pm.make_obj(dict(model=model, acc=_acc, loss=_loss))
+        return make_obj(dict(model=model, acc=_acc, loss=_loss))
 
     @classmethod
     def train(cls,

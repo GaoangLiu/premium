@@ -36,9 +36,14 @@ def sif_embeddings(sentences: List[str], model: Word2Vec, alpha: float = 1e-3):
         SIF sentence embedding matrix of dim len(sentences) * dimension
     """
     REAL = np.float32
-    vlookup = model.wv.key_to_index  # Gives us access to word index and count
-    vectors = model.wv  # Gives us access to word vectors
-    size = model.vector_size  # Embedding size
+    if isinstance(model, Word2Vec):
+        vlookup = model.wv.key_to_index  
+        vectors = model.wv  
+        size = model.vector_size
+    else: # KeyedVectors
+        vlookup = model.key_to_index  # Gives us access to word index and count
+        vectors = model  # Gives us access to word vectors
+        size = model.vector_size  # Embedding size
 
     Z = sum(vectors.get_vecattr(k, "count")
             for k in vlookup)  # Total word count
@@ -86,7 +91,8 @@ def top_k_similar_sentences(sentence: str,
     assert len(corpus) == len(
         candidate_embedding
     ), 'corpus and candidate_embedding must have the same length'
-    cos_sim = np.dot(candidate_embedding, sentence_embedding) / \
-        (np.linalg.norm(candidate_embedding, axis=1) * np.linalg.norm(sentence_embedding))
+    norm = np.linalg.norm(candidate_embedding, axis=1) * np.linalg.norm(sentence_embedding)
+    norm = np.where(norm == 0, 1, norm)
+    cos_sim = np.dot(candidate_embedding, sentence_embedding) / norm
     top_k = np.argsort(cos_sim)[::-1][:k]
     return [(cos_sim[i], corpus[i]) for i in top_k]
