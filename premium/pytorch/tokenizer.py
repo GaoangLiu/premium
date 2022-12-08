@@ -4,9 +4,9 @@ from abc import ABC, abstractmethod
 from typing import List, Union
 import torch
 import torchtext as tt
+import numpy as np 
 
-
-class Tokenizer(ABC):
+class Vectorizer(ABC):
     def __init__(self, *args, **kwargs):
         pass
 
@@ -35,12 +35,12 @@ class Tokenizer(ABC):
         pass
 
 
-class VocabTokenizer(Tokenizer):
+class VocabVectorizer(Vectorizer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tokenizer = tt.data.get_tokenizer('basic_english')
         self.vocab = None
-        self.max_len = kwargs.get('max_len', -1)
+        self.max_length = kwargs.get('max_length', 100)
         self.padding = kwargs.get('padding', False)
 
     def _yield_tokens(self, texts: List[str]):
@@ -50,25 +50,25 @@ class VocabTokenizer(Tokenizer):
     def __len__(self):
         return len(self.vocab)
 
+    def size(self)->int:
+        return len(self.vocab)
+    
     def fit(self, texts: List[str]) -> 'Self':
-        assert isinstance(texts, list), "texts must be a list"
         self.vocab = tt.vocab.build_vocab_from_iterator(self._yield_tokens(texts))
         self.vocab.set_default_index(0)
         return self
 
-    def transform(self, texts: Union[str, List[str]]) -> List[torch.tensor]:
+    def transform(self, texts: Union[str, List[str]]) -> np.ndarray:
         if isinstance(texts, str):
             texts = [texts]
-        tensors = []
-        for text in texts:
-            tokens = self.tokenizer(text)
-            if self.max_len > 0:
-                tokens = tokens[:self.max_len]
-            if self.padding:
-                tokens = tokens + ['<pad>'] * (self.max_len - len(tokens))
-            tensor = torch.tensor([self.vocab[token] for token in tokens])
-            tensors.append(tensor)
-        return tensors
+        vectors = [[self.vocab[token]
+                    for token in self.tokenizer(text)[:self.max_length]]
+                   for text in texts]
+        padded_vectors = np.array([
+            vector + [0] * (self.max_length - len(vector)) for vector in vectors
+        ])
+        return padded_vectors
+
 
     def fit_transform(self, texts: Union[str, List[str]]) -> List[List[int]]:
         if isinstance(texts, str):
@@ -88,3 +88,5 @@ class VocabTokenizer(Tokenizer):
 
     def __call__(self, texts: Union[str, List[str]]) -> List[int]:
         return self.transform(texts)
+
+

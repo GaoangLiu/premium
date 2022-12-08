@@ -23,7 +23,8 @@ d.drop(columns=[
 ],
        inplace=True)
 print(d.columns.tolist())
-# d = d[['供需', '竞争', '用户好评率（9.4前两周平均）']]
+d = d[['供需', '竞争']]
+# , '用户好评率（9.4前两周平均）']]
 features = d.columns.tolist()
 dtypes = dict(d.dtypes)
 print(dtypes)
@@ -63,7 +64,7 @@ from sklearn.cluster import DBSCAN
 from matplotlib import pyplot
 from sklearn.cluster import MiniBatchKMeans
 
-model = MiniBatchKMeans(n_clusters=2)
+model = MiniBatchKMeans(n_clusters=3)
 # 模型拟合
 model.fit(X)
 # 为每个示例分配一个集群
