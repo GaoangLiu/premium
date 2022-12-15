@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from premium.data.utils import make_obj, DataGetterFactory
 import os
 
 import codefast as cf
@@ -46,3 +47,12 @@ def imdb_sentiment() -> Struct:
 def spam_en() -> Struct:
     x = DataRetriver('https://host.ddot.cc/spam_en.csv', 'spam_en.csv', 'spam')
     return make_obj(dict(train=x.df))
+
+
+def loader(dataset_name: str):
+    cli = DataGetterFactory.init(dataset_name)
+    if cli:
+        cli.exec()
+        return cli.get_work_dir()
+    
+
