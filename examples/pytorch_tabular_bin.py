@@ -186,9 +186,9 @@ if __name__ == '__main__':
 
     model = LitBinaryClassification()
     trainer = pl.Trainer(max_epochs=EPOCHS, enable_progress_bar=False)
-    # trainer.fit(model)
-    # torch.save(model.state_dict(), 'trained_model.pth')
+    trainer.fit(model)
+    torch.save(model.state_dict(), 'trained_model.pth')
 
-    model.load_state_dict(torch.load('trained_model.pth'))
-    preds = trainer.predict(model, test_loader)
-    print(preds)
+    # model.load_state_dict(torch.load('trained_model.pth'))
+    # preds = trainer.predict(model, test_loader)
+    # print(preds)

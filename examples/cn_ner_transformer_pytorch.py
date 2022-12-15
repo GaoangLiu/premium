@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from premium.data.loader import load_yaml, make_obj
 import json
 import os
 import random
@@ -23,7 +24,6 @@ import premium as pm
 # refer: https://towardsdatascience.com/named-entity-recognition-with-bert-in-pytorch-a454405e0b6a
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from premium.data.loader import load_yaml, make_obj
 Cfg = load_yaml('data/config/ner_cn.yaml')
 Cfg.use_cuda = torch.cuda.is_available()
 cf.info(f'config is {Cfg}')
